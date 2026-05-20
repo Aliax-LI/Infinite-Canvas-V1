@@ -140,6 +140,8 @@ GLOBAL_LOOP = None
 APP_VERSION = "2026.05.19"
 GITHUB_REPO_URL = "https://github.com/hero8152/Infinite-Canvas"
 GITHUB_VERSION_URL = "https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main/VERSION"
+GITHUB_TREE_URL = "https://api.github.com/repos/hero8152/Infinite-Canvas/git/trees/main?recursive=1"
+GITHUB_RAW_ROOT = "https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main"
 
 @app.on_event("startup")
 async def startup_event():
@@ -188,6 +190,7 @@ CONVERSATION_LOCK = Lock()
 CANVAS_LOCK = Lock()
 LOAD_LOCK = Lock()
 NEXT_TASK_ID = 1
+UPDATE_LOCK = Lock()
 
 PROVIDER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,40}$")
 
@@ -658,6 +661,84 @@ def app_info():
         "version_url": GITHUB_VERSION_URL,
     }
 
+def update_allowed_file(path: str) -> bool:
+    path = str(path or "").replace("\\", "/").lstrip("/")
+    if not path or any(part in {"", ".", ".."} for part in path.split("/")):
+        return False
+    return path in {"main.py", "VERSION"} or path.startswith("static/")
+
+def github_json(url: str):
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "Infinite-Canvas-Updater",
+    })
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8", errors="replace"))
+
+def github_bytes(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "Infinite-Canvas-Updater"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return resp.read()
+
+def safe_update_target(path: str) -> str:
+    rel = str(path or "").replace("\\", "/").lstrip("/")
+    if not update_allowed_file(rel):
+        raise ValueError(f"更新文件不在允许范围：{rel}")
+    target = os.path.abspath(os.path.join(BASE_DIR, *rel.split("/")))
+    base = os.path.abspath(BASE_DIR)
+    if os.path.commonpath([base, target]) != base:
+        raise ValueError(f"更新路径不安全：{rel}")
+    return target
+
+@app.post("/api/update-from-github")
+def update_from_github():
+    if not UPDATE_LOCK.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="正在更新中，请稍后再试")
+    try:
+        tree_data = github_json(GITHUB_TREE_URL)
+        entries = tree_data.get("tree") or []
+        files = []
+        for entry in entries:
+            path = str(entry.get("path") or "").replace("\\", "/")
+            if entry.get("type") == "blob" and update_allowed_file(path):
+                files.append(path)
+        if "main.py" not in files:
+            files.append("main.py")
+        if "VERSION" not in files:
+            files.append("VERSION")
+        files = sorted(set(files))
+        backup_root = os.path.join(DATA_DIR, "update_backups", time.strftime("%Y%m%d-%H%M%S"))
+        updated = []
+        for rel in files:
+            target = safe_update_target(rel)
+            raw_url = f"{GITHUB_RAW_ROOT}/{urllib.parse.quote(rel, safe='/')}"
+            data = github_bytes(raw_url)
+            if os.path.exists(target):
+                backup_path = os.path.join(backup_root, *rel.split("/"))
+                os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+                shutil.copy2(target, backup_path)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            temp_path = f"{target}.update_tmp"
+            with open(temp_path, "wb") as f:
+                f.write(data)
+            os.replace(temp_path, target)
+            updated.append(rel)
+        return {
+            "ok": True,
+            "updated": updated,
+            "count": len(updated),
+            "backup_dir": backup_root if os.path.exists(backup_root) else "",
+            "restart_required": True,
+        }
+    except urllib.error.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"GitHub 下载失败：HTTP {exc.code}") from exc
+    except urllib.error.URLError as exc:
+        raise HTTPException(status_code=502, detail=f"无法连接 GitHub：{exc.reason}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"更新失败：{exc}") from exc
+    finally:
+        UPDATE_LOCK.release()
+
 class GenerateRequest(BaseModel):
     prompt: str = ""
     width: int = 1024
@@ -778,6 +859,7 @@ class ConversationCreateRequest(BaseModel):
 class CanvasCreateRequest(BaseModel):
     title: str = "未命名画布"
     icon: str = "🧩"
+    kind: str = "classic"
 
 class CanvasSaveRequest(BaseModel):
     title: str = "未命名画布"
@@ -786,6 +868,7 @@ class CanvasSaveRequest(BaseModel):
     connections: List[Dict[str, Any]] = []
     viewport: Dict[str, Any] = {}
     logs: List[Dict[str, Any]] = []
+    settings: Dict[str, Any] = {}
     client_id: str = ""
     base_updated_at: int = 0
 
@@ -1005,12 +1088,17 @@ def save_canvas(canvas):
         with open(canvas_path(canvas["id"]), 'w', encoding='utf-8') as f:
             json.dump(canvas, f, ensure_ascii=False, indent=2)
 
-def new_canvas(title="未命名画布", icon="layers"):
+def normalize_canvas_kind(kind="classic"):
+    return "smart" if str(kind or "").strip().lower() == "smart" else "classic"
+
+def new_canvas(title="未命名画布", icon="layers", kind="classic"):
     timestamp = now_ms()
+    canvas_kind = normalize_canvas_kind(kind)
     canvas = {
         "id": uuid.uuid4().hex,
-        "title": (title or "未命名画布")[:80],
-        "icon": (icon or "🧩")[:4],
+        "title": (title or ("智能画布" if canvas_kind == "smart" else "未命名画布"))[:80],
+        "icon": (icon or ("sparkles" if canvas_kind == "smart" else "🧩"))[:32],
+        "kind": canvas_kind,
         "created_at": timestamp,
         "updated_at": timestamp,
         "nodes": [],
@@ -1042,6 +1130,7 @@ def canvas_record(data):
         "id": data.get("id"),
         "title": data.get("title", "未命名画布"),
         "icon": data.get("icon", "🧩"),
+        "kind": normalize_canvas_kind(data.get("kind")),
         "created_at": data.get("created_at", 0),
         "updated_at": data.get("updated_at", 0),
         "deleted_at": data.get("deleted_at", 0),
@@ -2743,7 +2832,7 @@ async def trashed_canvases():
 
 @app.post("/api/canvases")
 async def create_canvas(payload: CanvasCreateRequest):
-    return {"canvas": new_canvas(payload.title, payload.icon)}
+    return {"canvas": new_canvas(payload.title, payload.icon, payload.kind)}
 
 @app.get("/api/canvases/{canvas_id}/meta")
 async def get_canvas_meta(canvas_id: str):
@@ -2753,6 +2842,7 @@ async def get_canvas_meta(canvas_id: str):
         "updated_at": canvas.get("updated_at", 0),
         "title": canvas.get("title", "未命名画布"),
         "icon": canvas.get("icon", "layers"),
+        "kind": normalize_canvas_kind(canvas.get("kind")),
     }
 
 @app.get("/api/canvases/{canvas_id}")
@@ -2817,10 +2907,12 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
         })
     canvas["title"] = (payload.title or canvas.get("title") or "未命名画布")[:80]
     canvas["icon"] = (payload.icon or canvas.get("icon") or "layers")[:32]
+    canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))
     canvas["nodes"] = payload.nodes
     canvas["connections"] = payload.connections
     canvas["viewport"] = payload.viewport
     canvas["logs"] = payload.logs[-500:]
+    canvas["settings"] = payload.settings or {}
     save_canvas(canvas)
     await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
     return {"canvas": canvas}
