@@ -21,6 +21,12 @@ const imageEditModal = document.getElementById('imageEditModal');
 const smartLogModal = document.getElementById('smartLogModal');
 const smartLogList = document.getElementById('smartLogList');
 const smartShortcutModal = document.getElementById('smartShortcutModal');
+const smartWorkflowToggle = document.getElementById('smartWorkflowToggle');
+const smartWorkflowTransferModal = document.getElementById('smartWorkflowTransferModal');
+const smartWorkflowTransferSub = document.getElementById('smartWorkflowTransferSub');
+const smartWorkflowExportMeta = document.getElementById('smartWorkflowExportMeta');
+const smartWorkflowImportInput = document.getElementById('smartWorkflowImportInput');
+const smartWorkflowImportDropZone = document.getElementById('smartWorkflowImportDropZone');
 const selectionBox = document.getElementById('selectionBox');
 const assetToggle = document.getElementById('assetToggle');
 const assetPanel = document.getElementById('assetPanel');
@@ -31,6 +37,8 @@ const assetGrid = document.getElementById('assetGrid');
 const assetDropZone = document.getElementById('assetDropZone');
 const workflowEmpty = document.getElementById('workflowEmpty');
 const assetImageControls = document.getElementById('assetImageControls');
+const assetAddCategoryBtn = document.getElementById('assetAddCategoryBtn');
+const assetRenameCategoryBtn = document.getElementById('assetRenameCategoryBtn');
 const assetDialogBackdrop = document.getElementById('assetDialogBackdrop');
 const assetDialogTitle = document.getElementById('assetDialogTitle');
 const assetDialogInput = document.getElementById('assetDialogInput');
@@ -67,6 +75,7 @@ let selectionState = null;
 let isRKeyDown = false;
 let selectionJustFinished = false;
 let resizeState = null;
+let llmInstructionResizeState = null;
 let thumbDragState = null;
 let uploadTargetId = '';
 let pendingGroupUploadPoint = null;
@@ -84,6 +93,9 @@ let assetTab = 'image';
 let activeAssetCategoryId = '';
 let activeAssetLibraryId = '';
 let activeWorkflowAssetCategoryId = '';
+const LOCAL_ASSET_LIBRARY_ID = '__local_assets__';
+let localAssetLibrary = {items:[], tree:null};
+let activeLocalAssetFolderId = '__root__';
 let mentionSource = 'input';
 let mentionAssetCategoryId = '';
 let assetLibraryUpdatedAt = 0;
@@ -380,6 +392,203 @@ function canvasForStorage(){
         if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
     });
     return clean;
+}
+function apiErrorMessage(data, fallback='请求失败'){
+    if(!data) return fallback;
+    if(typeof data === 'string') return data || fallback;
+    const detail = data.detail ?? data.error ?? data.message;
+    if(typeof detail === 'string') return detail || fallback;
+    if(Array.isArray(detail)){
+        const messages = detail.map(item => {
+            if(typeof item === 'string') return item;
+            const loc = Array.isArray(item?.loc) ? item.loc.filter(x => x !== 'body').join('.') : '';
+            const msg = item?.msg || item?.message || JSON.stringify(item);
+            return loc ? `${loc}: ${msg}` : msg;
+        }).filter(Boolean);
+        return messages.join('\n') || fallback;
+    }
+    if(detail && typeof detail === 'object') return detail.message || detail.msg || JSON.stringify(detail);
+    try {
+        return JSON.stringify(data);
+    } catch(e) {
+        return fallback;
+    }
+}
+async function responseErrorMessage(response, fallback='请求失败'){
+    try {
+        const data = await response.clone().json();
+        return apiErrorMessage(data, fallback);
+    } catch(e) {
+        try {
+            const text = await response.text();
+            return text || fallback;
+        } catch(_) {
+            return fallback;
+        }
+    }
+}
+function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'smart-canvas-workflow.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 800);
+}
+function smartWorkflowFilename(ext='json'){
+    const title = (canvas?.title || document.getElementById('smartTitle')?.textContent || 'smart-canvas').trim();
+    const safe = title.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '-').slice(0, 48) || 'smart-canvas';
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+    return `${safe}-workflow-${stamp}.${ext}`;
+}
+function serializableSmartNode(node){
+    const base = JSON.parse(JSON.stringify(node || {}));
+    const copy = normalizeLegacySmartNode(base) || {};
+    if(Array.isArray(copy.images)) copy.images = copy.images.map(img => mediaItemForStorage(stripImageGenerationMeta(img))).filter(Boolean);
+    if(copy.runSettings) copy.runSettings = settingsForStorage(copy.runSettings);
+    copy.running = false;
+    copy.pending = 0;
+    copy.queued = false;
+    copy.jimengPending = null;
+    delete copy.pendingTasks;
+    delete copy._dom;
+    return copy;
+}
+function selectedSmartWorkflowPayload(){
+    const ids = selectedNodeIds();
+    const idSet = new Set(ids);
+    const selectedNodes = nodes.filter(node => idSet.has(node.id)).map(serializableSmartNode);
+    const selectedSet = new Set(selectedNodes.map(node => node.id));
+    const selectedConnections = (canvas?.connections || [])
+        .filter(conn => selectedSet.has(conn.from) && selectedSet.has(conn.to))
+        .map(conn => JSON.parse(JSON.stringify(conn)));
+    return {
+        format:'infinite-smart-canvas-workflow',
+        version:1,
+        canvas_type:'smart',
+        exported_at:Date.now(),
+        nodes:selectedNodes,
+        connections:selectedConnections
+    };
+}
+function normalizeImportedSmartWorkflow(data){
+    if(Array.isArray(data)) return {nodes:data, connections:[]};
+    if(Array.isArray(data?.nodes)) return {nodes:data.nodes, connections:Array.isArray(data.connections) ? data.connections : []};
+    if(Array.isArray(data?.workflow?.nodes)) return {nodes:data.workflow.nodes, connections:Array.isArray(data.workflow.connections) ? data.workflow.connections : []};
+    return {nodes:[], connections:[]};
+}
+function openSmartWorkflowTransferModal(){
+    if(!canvas){ toast('请先打开画布'); return; }
+    toggleAssetLibrary(false);
+    updateSmartWorkflowTransferMeta();
+    smartWorkflowTransferModal?.classList.add('open');
+    smartWorkflowToggle?.classList.add('active');
+    refreshIcons();
+}
+function closeSmartWorkflowTransferModal(){
+    smartWorkflowTransferModal?.classList.remove('open');
+    smartWorkflowToggle?.classList.remove('active');
+    smartWorkflowImportDropZone?.classList.remove('drag-over');
+}
+function updateSmartWorkflowTransferMeta(){
+    const payload = selectedSmartWorkflowPayload();
+    const nodeCount = payload.nodes.length;
+    const connCount = payload.connections.length;
+    smartWorkflowExportMeta?.classList.remove('busy', 'success');
+    if(smartWorkflowExportMeta) smartWorkflowExportMeta.textContent = nodeCount ? `已选择 ${nodeCount} 个节点，${connCount} 条连线` : '未选择节点，请先选中要导出的组件';
+    if(smartWorkflowTransferSub) smartWorkflowTransferSub.textContent = nodeCount ? '导出当前选中内容，或把工作流导入到当前画布' : '请先选中节点再导出；导入会追加到当前画布';
+}
+async function exportSelectedSmartWorkflow(includeResources=false){
+    if(!canvas) return;
+    const payload = selectedSmartWorkflowPayload();
+    if(!payload.nodes.length){
+        updateSmartWorkflowTransferMeta();
+        toast('未选择节点，请先选中要导出的组件');
+        return;
+    }
+    try {
+        if(!includeResources){
+            downloadBlob(new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'}), smartWorkflowFilename('json'));
+            toast('已导出智能画布工作流 JSON');
+            return;
+        }
+        if(smartWorkflowExportMeta){
+            smartWorkflowExportMeta.classList.add('busy');
+            smartWorkflowExportMeta.textContent = '正在打包资源...';
+        }
+        const filename = smartWorkflowFilename('zip');
+        const res = await fetch('/api/canvas-workflows/export', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({...payload, include_resources:true, filename})
+        });
+        if(!res.ok) throw new Error(await responseErrorMessage(res, '导出工作流失败'));
+        downloadBlob(await res.blob(), filename);
+        if(smartWorkflowExportMeta){
+            smartWorkflowExportMeta.classList.remove('busy');
+            smartWorkflowExportMeta.classList.add('success');
+            smartWorkflowExportMeta.textContent = `已导出 ${payload.nodes.length} 个节点，包含可找到的本地资源`;
+        }
+        toast('已导出包含资源的智能画布工作流包');
+        setTimeout(() => {
+            if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
+        }, 1600);
+    } catch(err) {
+        smartWorkflowExportMeta?.classList.remove('busy', 'success');
+        toast(err.message || '导出工作流失败');
+    }
+}
+function insertSmartWorkflowIntoCanvas(imported){
+    const srcNodes = (imported.nodes || []).filter(Boolean);
+    const srcConnections = (imported.connections || []).filter(Boolean);
+    if(!canvas || !srcNodes.length) throw new Error('工作流中没有可导入的节点');
+    pushUndo();
+    const minX = Math.min(...srcNodes.map(n => Number(n.x || 0)));
+    const minY = Math.min(...srcNodes.map(n => Number(n.y || 0)));
+    const target = viewportCenter();
+    const dx = target.x - minX;
+    const dy = target.y - minY;
+    const idMap = new Map();
+    const newNodes = srcNodes.map(source => {
+        const copy = serializableSmartNode(source);
+        const oldId = copy.id || uid(copy.type || 'smart');
+        copy.id = uid(copy.type || 'smart');
+        copy.x = Number(copy.x || 0) + dx;
+        copy.y = Number(copy.y || 0) + dy;
+        copy.created_at = copy.created_at || Date.now();
+        idMap.set(oldId, copy.id);
+        return normalizeLegacySmartNode(copy);
+    }).filter(Boolean);
+    const newConnections = srcConnections
+        .map(conn => ({...JSON.parse(JSON.stringify(conn)), from:idMap.get(conn.from), to:idMap.get(conn.to)}))
+        .filter(conn => conn.from && conn.to);
+    nodes.push(...newNodes);
+    canvas.connections = [...(canvas.connections || []), ...newConnections];
+    selectedIds = newNodes.length > 1 ? newNodes.map(node => node.id) : [];
+    selectedId = newNodes.length === 1 ? newNodes[0].id : '';
+    selectedImage = {nodeId:'', index:-1};
+    activeComposerSubject = null;
+    render();
+    scheduleSave();
+    toast(`已导入 ${newNodes.length} 个节点`);
+}
+async function importSmartWorkflowFile(file){
+    if(!canvas || !file) return;
+    try {
+        if(smartWorkflowTransferSub) smartWorkflowTransferSub.textContent = '正在导入工作流...';
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch('/api/canvas-workflows/import', {method:'POST', body:form});
+        if(!res.ok) throw new Error(await responseErrorMessage(res, '导入工作流失败'));
+        const data = await res.json();
+        insertSmartWorkflowIntoCanvas(normalizeImportedSmartWorkflow(data));
+        closeSmartWorkflowTransferModal();
+    } catch(err) {
+        if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
+        toast(err.message || '导入工作流失败');
+    }
 }
 const RECENT_SMART_SETTINGS_KEY = 'smart_canvas_recent_run_settings_v1';
 const initialSmartSettings = cloneSmartSettings(settings);
@@ -792,8 +1001,18 @@ function smartNodeInputThumbsHtml(images, opts={}){
     const more = refs.length > limit ? `<div class="smart-node-input-thumb smart-node-input-more">+${refs.length - limit}</div>` : '';
     return `<div class="smart-node-input-thumbs">${items}${more}</div>`;
 }
+const PROMPT_LLM_INSTRUCTION_DEFAULT_H = 58;
+const PROMPT_LLM_INSTRUCTION_MIN_H = 40;
+const PROMPT_LLM_INSTRUCTION_MAX_H = 400;
+function promptLlmInstructionHeight(node){
+    const h = Number(node?.llmInstructionHeight);
+    if(!Number.isFinite(h)) return PROMPT_LLM_INSTRUCTION_DEFAULT_H;
+    return Math.max(PROMPT_LLM_INSTRUCTION_MIN_H, Math.min(PROMPT_LLM_INSTRUCTION_MAX_H, Math.round(h)));
+}
 function promptNodeExpandedHeight(node){
-    return (node?.llmSystemEnabled ? 344 : 292) + smartNodeInputThumbsHeight(promptNodeInputImages(node));
+    // 指令文本框（发送给 LLM 的内容）可拖动加高，超出默认高度的部分要叠加进节点高度。
+    const extra = Math.max(0, promptLlmInstructionHeight(node) - PROMPT_LLM_INSTRUCTION_DEFAULT_H);
+    return (node?.llmSystemEnabled ? 344 : 292) + smartNodeInputThumbsHeight(promptNodeInputImages(node)) + extra;
 }
 function promptNodeLayoutSize(node){
     const oldCollapsedH = 230;
@@ -881,6 +1100,11 @@ function nodeRect(node){
 }
 function applyViewport(){
     world.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`;
+    // world 被 transform:scale 缩放后，其内部带 backdrop-filter 的卡片（参数设置/合成卡等）
+    // 会被部分浏览器（Chrome/Edge 等 Blink 内核）当作独立合成层先按 1x 栅格化、再整体缩放，
+    // 缩小时位图被降采样 → 组件发虚。缩放态下关闭这些 backdrop-filter（底色本身已接近不透明，
+    // 观感几乎无差），让卡片随矢量重新栅格化，保持清晰。
+    world.classList.toggle('canvas-scaled', Math.abs(viewport.scale - 1) > 0.001);
     shell.style.backgroundSize = '24px 24px';
     shell.style.backgroundPosition = '0 0';
     renderMinimap();
@@ -2384,7 +2608,9 @@ async function rhBuildNodeInfoList(media, sourceSettings=settings, randomValues=
         if(rhFieldRole(field) === 'prompt' && !String(value || '').trim()) value = rhDefaultValue(field);
         if(['image','video','audio'].includes(kind)) value = await rhUploadValueIfNeeded(value, sourceSettings);
         if(['number','slider'].includes(kind) && String(value ?? '').trim() !== '' && !Number.isNaN(Number(value))) value = Number(value);
-        if(typeof value === 'string' && /[\r\n]/.test(value)) value = value.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
+        // 只对“单值”字段（下拉/选项等）去换行；prompt / text 这类自由文本必须保留换行，
+        // 否则多行提示词会被截成第一行（例如“一只红猫\n金色的眼睛”只剩“一只红猫”）。
+        if(typeof value === 'string' && !['prompt','text'].includes(rhFieldRole(field)) && /[\r\n]/.test(value)) value = value.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
         result.push({nodeId:field.nodeId, fieldName:field.fieldName, fieldValue:value});
     }
     return result;
@@ -3004,6 +3230,8 @@ function renderPromptTemplatePanel(options={}){
     const query = String(promptTemplateSearch?.value || '').trim().toLowerCase();
     const allTemplates = promptTemplateItems();
     const activeGroups = activePromptTemplateGroups();
+    // 防御：若当前分类筛选不属于当前词库（例如刚切换词库或分类已被删除），回到“全部”，避免列表被过滤为空。
+    if(promptTemplateCategory !== 'all' && !activeGroups.some(g => g.id === promptTemplateCategory)) promptTemplateCategory = 'all';
     const categories = [{id:'all', name:tr('smart.tplAll')}, ...activeGroups.map(group => ({...group, name:promptTemplateCategoryLabel(group.id)}))];
     const groupCounts = allTemplates.reduce((map, item) => {
         map[item.category || 'mine'] = (map[item.category || 'mine'] || 0) + 1;
@@ -3401,7 +3629,35 @@ function workflowAssetCategories(){
 function assetLibraries(){
     return Array.isArray(assetLibrary.libraries) && assetLibrary.libraries.length ? assetLibrary.libraries : [{id:'default', name:'默认资产库', categories:assetLibrary.categories || []}];
 }
+function localAssetFolderCategories(){
+    const result = [];
+    const walk = node => {
+        if(!node) return;
+        const isRoot = (node.id || node.path || '__root__') === '__root__';
+        result.push({
+            id: node.id || (node.path ? node.path : '__root__'),
+            name: node.name || (node.path ? node.path.split('/').pop() : '全部上传'),
+            type: 'image',
+            items: (isRoot ? (localAssetLibrary.items || []) : (node.items || [])).filter(item => assetMediaKind(item) === 'image'),
+            readonly: true,
+            source: 'local',
+        });
+        (node.children || []).forEach(walk);
+    };
+    walk(localAssetLibrary.tree || {id:'__root__', name:'全部上传', items:localAssetLibrary.items || [], children:[]});
+    return result.filter(cat => cat.id === '__root__' || cat.items.length || (localAssetLibrary.tree?.children || []).length);
+}
+function assetLibraryIsLocal(){
+    return activeAssetLibraryId === LOCAL_ASSET_LIBRARY_ID;
+}
+function currentAssetSourceLibraries(){
+    return [
+        ...assetLibraries(),
+        {id:LOCAL_ASSET_LIBRARY_ID, name:'本地素材', categories:localAssetFolderCategories(), readonly:true, source:'local'}
+    ];
+}
 function activeAssetLibrary(){
+    if(assetLibraryIsLocal()) return currentAssetSourceLibraries().find(lib => lib.id === LOCAL_ASSET_LIBRARY_ID);
     const libs = assetLibraries();
     return libs.find(lib => lib.id === activeAssetLibraryId) || libs[0] || null;
 }
@@ -3415,9 +3671,26 @@ function activeWorkflowAssetCategory(){
     if(!cats.length) return null;
     return cats.find(cat => cat.id === activeWorkflowAssetCategoryId) || cats[0];
 }
+function currentAssetTabIsWorkflow(){
+    return assetTab === 'workflow';
+}
+function currentAssetTabCategories(){
+    return currentAssetTabIsWorkflow() ? workflowAssetCategories() : assetCategories('image');
+}
+function activeAssetTabCategory(){
+    return currentAssetTabIsWorkflow() ? activeWorkflowAssetCategory() : activeAssetCategory();
+}
+function setActiveAssetTabCategory(categoryId=''){
+    if(currentAssetTabIsWorkflow()) activeWorkflowAssetCategoryId = categoryId || '';
+    else activeAssetCategoryId = categoryId || '';
+}
 async function loadAssetLibrary(){
     try {
-        const data = await fetch('/api/asset-library').then(r => r.json());
+        const [data, localData] = await Promise.all([
+            fetch('/api/asset-library').then(r => r.json()),
+            fetch('/api/local-assets').then(r => r.ok ? r.json() : {items:[], tree:null}).catch(() => ({items:[], tree:null}))
+        ]);
+        localAssetLibrary = {items:Array.isArray(localData.items) ? localData.items : [], tree:localData.tree || null};
         setAssetLibraryFromResponse(data, {render:false});
         renderAssetLibrary();
     } catch(e) {
@@ -3597,7 +3870,7 @@ function setAssetLibraryFromResponse(data, options={}){
     assetLibraryUpdatedAt = Number(assetLibrary.updated_at || assetLibraryUpdatedAt || 0);
     const libs = assetLibraries();
     if(!activeAssetLibraryId) activeAssetLibraryId = assetLibrary.active_library_id || libs[0]?.id || '';
-    if(activeAssetLibraryId && !libs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = libs[0]?.id || '';
+    if(activeAssetLibraryId && activeAssetLibraryId !== LOCAL_ASSET_LIBRARY_ID && !libs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = libs[0]?.id || '';
     const cats = assetCategories('image');
     if(activeAssetCategoryId && !cats.some(cat => cat.id === activeAssetCategoryId)) activeAssetCategoryId = '';
     if(!activeAssetCategoryId) activeAssetCategoryId = activeAssetCategory()?.id || '';
@@ -3657,15 +3930,16 @@ function assetThumbHtml(item){
 function renderAssetLibrary(){
     if(!assetPanel || !assetGrid || !assetCategorySelect) return;
     document.querySelectorAll('[data-asset-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.assetTab === assetTab));
-    const libs = assetLibraries();
-    if(!activeAssetLibraryId || !libs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = libs[0]?.id || '';
+    const libs = currentAssetSourceLibraries();
+    if(!activeAssetLibraryId || !libs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = assetLibrary.active_library_id || assetLibraries()[0]?.id || LOCAL_ASSET_LIBRARY_ID;
     if(assetLibrarySelect){
         assetLibrarySelect.innerHTML = libs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === activeAssetLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('');
     }
     const imageMode = assetTab === 'image';
     const workflowMode = assetTab === 'workflow';
     assetImageControls.style.display = (imageMode || workflowMode) ? 'block' : 'none';
-    assetDropZone.style.display = imageMode ? 'flex' : 'none';
+    const localMode = assetLibraryIsLocal();
+    assetDropZone.style.display = (imageMode && !localMode) ? 'flex' : 'none';
     assetGrid.style.display = (imageMode || workflowMode) ? 'grid' : 'none';
     workflowEmpty.style.display = 'none';
     if(!imageMode && !workflowMode){ refreshIcons(); return; }
@@ -3676,18 +3950,21 @@ function renderAssetLibrary(){
     assetCategorySelect.innerHTML = cats.map(cat => `<option value="${escapeHtml(cat.id)}" ${cat.id === (workflowMode ? activeWorkflowAssetCategoryId : activeAssetCategoryId) ? 'selected' : ''}>${escapeHtml(cat.name || (workflowMode ? '工作流' : tr('smart.assetFolder')))}</option>`).join('');
     const cat = workflowMode ? activeWorkflowAssetCategory() : activeAssetCategory();
     const items = cat?.items || [];
+    if(assetAddCategoryBtn) assetAddCategoryBtn.disabled = localMode;
+    if(assetRenameCategoryBtn) assetRenameCategoryBtn.disabled = !cat || localMode;
     assetGrid.innerHTML = items.length ? items.map(item => `
         <div class="asset-item ${workflowMode ? 'workflow-asset-item' : ''}" draggable="${workflowMode ? 'false' : 'true'}" data-asset-id="${escapeHtml(item.id)}" data-url="${escapeHtml(item.url)}" data-name="${escapeHtml(item.name || 'asset')}" data-kind="${escapeHtml(assetMediaKind(item))}">
             ${assetThumbHtml(item)}
             <div class="asset-meta">
                 <span class="asset-name" title="${escapeHtml(item.name || '')}">${escapeHtml(item.name || 'asset')}</span>
                 ${workflowMode
-                    ? `<button class="asset-mini-btn" type="button" data-download-workflow-asset="${escapeHtml(item.id)}" title="导出工作流"><i data-lucide="download"></i></button>`
-                    : `<button class="asset-mini-btn" type="button" data-rename-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('smart.assetRename'))}"><i data-lucide="pencil"></i></button>
+                    ? `<button class="asset-mini-btn" type="button" data-rename-workflow-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('smart.assetRename'))}"><i data-lucide="pencil"></i></button>
+                       <button class="asset-mini-btn" type="button" data-delete-workflow-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>`
+                    : localMode ? `<span class="asset-local-tag">本地</span>` : `<button class="asset-mini-btn" type="button" data-rename-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('smart.assetRename'))}"><i data-lucide="pencil"></i></button>
                        <button class="asset-mini-btn" type="button" data-delete-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>`}
             </div>
         </div>
-    `).join('') : `<div class="asset-empty">${escapeHtml(workflowMode ? '暂无工作流资产' : tr('smart.assetEmpty'))}</div>`;
+    `).join('') : `<div class="asset-empty">${escapeHtml(localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : tr('smart.assetEmpty')))}</div>`;
     if(workflowMode) bindWorkflowAssetItemEvents();
     else bindAssetItemEvents();
     refreshIcons();
@@ -3781,12 +4058,14 @@ function hideAssetHoverPreview(){
     media?.load?.();
 }
 function beginAssetInlineRename(assetId){
-    const item = (activeAssetCategory()?.items || []).find(x => x.id === assetId);
+    const item = (activeAssetCategory()?.items || []).find(x => x.id === assetId)
+        || (activeWorkflowAssetCategory()?.items || []).find(x => x.id === assetId);
     const card = [...assetGrid.querySelectorAll('.asset-item')].find(el => el.dataset.assetId === assetId);
     const nameEl = card?.querySelector('.asset-name');
     if(!item || !card || !nameEl || card.querySelector('.asset-rename-input')) return;
     hideAssetHoverPreview();
     const previousName = item.name || 'asset';
+    const previousDraggable = card.draggable;
     const input = document.createElement('input');
     input.className = 'asset-rename-input';
     input.type = 'text';
@@ -3799,7 +4078,7 @@ function beginAssetInlineRename(assetId){
     let done = false;
     const restore = () => {
         if(input.isConnected) input.replaceWith(nameEl);
-        card.draggable = true;
+        card.draggable = previousDraggable;
     };
     const finish = async save => {
         if(done) return;
@@ -3867,23 +4146,32 @@ function bindAssetItemEvents(){
     });
 }
 function bindWorkflowAssetItemEvents(){
-    assetGrid.querySelectorAll('[data-download-workflow-asset]').forEach(btn => {
-        btn.onclick = e => {
+    assetGrid.querySelectorAll('[data-rename-workflow-asset]').forEach(btn => {
+        btn.onclick = async e => {
             e.preventDefault();
             e.stopPropagation();
-            const item = (activeWorkflowAssetCategory()?.items || []).find(x => x.id === btn.dataset.downloadWorkflowAsset);
-            if(item?.url) {
-                const link = document.createElement('a');
-                link.href = item.url;
-                link.download = `${item.name || 'workflow'}${String(item.url).toLowerCase().endsWith('.json') ? '.json' : '.zip'}`;
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
+            beginAssetInlineRename(btn.dataset.renameWorkflowAsset);
+        };
+    });
+    assetGrid.querySelectorAll('[data-delete-workflow-asset]').forEach(btn => {
+        btn.onclick = async e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const item = (activeWorkflowAssetCategory()?.items || []).find(x => x.id === btn.dataset.deleteWorkflowAsset);
+            if(!item) return;
+            btn.disabled = true;
+            try {
+                const data = await fetch(`/api/asset-library/items/${encodeURIComponent(item.id)}`, {method:'DELETE'}).then(r => r.json());
+                setAssetLibraryFromResponse(data);
+            } catch(err){
+                btn.disabled = false;
+                toast(err.message || tr('smart.assetAddFail'));
             }
         };
     });
 }
 async function addUrlToAssetLibrary(url, name=''){
+    if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中上传'); return; }
     const cat = activeAssetCategory();
     if(!cat){ toast(tr('smart.assetNoFolder')); return; }
     const data = await fetch('/api/asset-library/items', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:activeAssetLibraryId, category_id:cat.id, url, name})}).then(async r => {
@@ -4118,6 +4406,45 @@ function pasteNodes(){
     selectedImage = {nodeId:'', index:-1};
     render();
     scheduleSave();
+}
+// 跨页"素材库 → 画布"剪贴板：素材库管理页把所选素材写进这个 localStorage key，
+// 画布里按 Ctrl+V 读取并批量生成图片节点（网格平铺），用完即清空（一次性）。
+const SMART_CANVAS_ASSET_INBOX_KEY = 'smart_canvas_asset_inbox';
+function readAssetInbox(){
+    try {
+        const data = JSON.parse(localStorage.getItem(SMART_CANVAS_ASSET_INBOX_KEY) || 'null');
+        const items = Array.isArray(data?.items) ? data.items.filter(it => it && it.url) : [];
+        if(!items.length) return null;
+        if(data.ts && (Date.now() - Number(data.ts)) > 30 * 60 * 1000) return null; // 30 分钟内有效
+        return items;
+    } catch(e){ return null; }
+}
+function pasteAssetsFromInbox(){
+    const items = readAssetInbox();
+    if(!items) return false;
+    const center = lastMouseWorld || viewportCenter();
+    const cell = 260; // 网格间距（世界坐标）
+    const cols = Math.max(1, Math.min(items.length, Math.ceil(Math.sqrt(items.length))));
+    const rows = Math.ceil(items.length / cols);
+    const startX = center.x - (cols - 1) * cell / 2;
+    const startY = center.y - (rows - 1) * cell / 2;
+    pushUndo();
+    const created = [];
+    items.forEach((it, i) => {
+        const r = Math.floor(i / cols), c = i % cols;
+        const p = {x: startX + c * cell, y: startY + r * cell};
+        const node = createImageNodeAt(p, [{url: it.url, name: it.name || 'asset', kind: it.kind || assetMediaKind(it)}], {skipUndo:true, select:false});
+        if(node) created.push(node.id);
+    });
+    selectedId = created.length === 1 ? created[0] : '';
+    selectedIds = created.length > 1 ? created : [];
+    selectedImage = {nodeId:'', index:-1};
+    lastNodePasteAt = Date.now();
+    try { localStorage.removeItem(SMART_CANVAS_ASSET_INBOX_KEY); } catch(e){}
+    render();
+    scheduleSave();
+    toast(`已粘贴 ${created.length} 个素材到画布`);
+    return true;
 }
 function duplicateForAltDrag(node){
     const ids = (isNodeSelected(node.id) ? selectedNodeIds() : [node.id]);
@@ -4795,7 +5122,10 @@ function promptNodeBodyHtml(node){
         <div class="prompt-node-llm">
             <select class="prompt-node-control prompt-llm-provider">${chatProviderOptions(node.llmProvider)}</select>
             <select class="prompt-node-control prompt-llm-model">${chatModelOptions(node.llmModel, node.llmProvider)}</select>
-            <textarea class="prompt-node-control prompt-llm-instruction" placeholder="${escapeHtml(tr('smart.promptLlmInstructionPlaceholder'))}">${escapeHtml(node.llmInstruction || '')}</textarea>
+            <div class="prompt-llm-instruction-wrap">
+                <textarea class="prompt-node-control prompt-llm-instruction" placeholder="${escapeHtml(tr('smart.promptLlmInstructionPlaceholder'))}" style="height:${promptLlmInstructionHeight(node)}px">${escapeHtml(node.llmInstruction || '')}</textarea>
+                <div class="prompt-llm-instruction-resize prompt-node-control" data-llm-instruction-resize="1" title="拖动调整高度"><span></span></div>
+            </div>
             <div class="prompt-node-llm-actions">
                 <button class="prompt-node-run prompt-node-control" type="button" ${node.running ? 'disabled' : ''}><i data-lucide="${node.running ? 'loader-2' : 'play'}"></i><span>${node.running ? escapeHtml(tr('common.running')) : escapeHtml(tr('common.run'))}</span></button>
                 <button class="prompt-node-pill prompt-node-control prompt-system-toggle ${node.llmSystemEnabled ? 'active' : ''}" type="button"><i data-lucide="${node.llmSystemEnabled ? 'toggle-right' : 'toggle-left'}"></i><span>${escapeHtml(node.llmSystemEnabled ? tr('smart.promptLlmDisableSystem') : tr('smart.promptLlmEnableSystem'))}</span></button>
@@ -5014,6 +5344,7 @@ function refreshRunTimerPills(){
     if(!active && runTimerInterval){ clearInterval(runTimerInterval); runTimerInterval = null; }
 }
 function render(){
+    if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
     const composerEl = composer;
     const mediaStates = captureMediaPlaybackStates();
     const reusableNodes = new Map();
@@ -5036,11 +5367,11 @@ function render(){
         const isGroup = isImageNode && imgs.length > 1;
         const isPending = ((node.pending || isQueued || isJimengPending) && imgs.length === 0);
         const body = nodeBodyHtml(node, layout);
-        const deleteBtn = `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
+        const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
         const hint = isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')));
         const html = `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
             <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
-            ${!isEmpty ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
+            ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
             ${runTimePillHtml(node)}
             <div class="node-body">${body}</div>
             <div class="node-hint">${hint}</div>
@@ -5100,10 +5431,10 @@ function render(){
         const isGroup = isImageNode && imgs.length > 1;
         const isPending = (node.pending || isQueued) && imgs.length === 0;
         const body = nodeBodyHtml(node, layout);
-        const deleteBtn = `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
+        const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
         return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
             <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
-            ${!isEmpty ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
+            ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
             ${runTimePillHtml(node)}
             <div class="node-body">${body}</div>
             <div class="node-hint">${isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')))}</div>
@@ -5245,6 +5576,15 @@ function bindPromptNodeControls(el, node){
     if(systemEl) { bindScrollableText(systemEl); systemEl.oninput = e => { node.llmSystemPrompt = e.target.value; scheduleSave(); }; }
     const instructionEl = el.querySelector('.prompt-llm-instruction');
     if(instructionEl) { bindScrollableText(instructionEl); instructionEl.oninput = e => { node.llmInstruction = e.target.value; scheduleSave(); }; }
+    const instructionResizeEl = el.querySelector('[data-llm-instruction-resize]');
+    if(instructionResizeEl) instructionResizeEl.addEventListener('mousedown', e => {
+        if(e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        llmInstructionResizeState = {id:node.id, startY:e.clientY, startH:promptLlmInstructionHeight(node), startNodeH:promptNodeLayoutSize(node).height};
+        // 拖动期间屏蔽文本框的指针/选区，否则上拉时光标滑到上方输入框会被它抢走（选中文字/失焦）。
+        document.body.classList.add('smart-node-resize', 'smart-llm-instr-resize');
+        capturePendingUndo();
+    });
     const runEl = el.querySelector('.prompt-node-run');
     if(runEl) runEl.onclick = e => { e.preventDefault(); e.stopPropagation(); runPromptLLMNode(node.id); };
 }
@@ -11712,6 +12052,21 @@ window.onmousemove = e => {
         updateNodeElementDuringResize(node);
         return;
     }
+    if(llmInstructionResizeState){
+        const node = nodes.find(n => n.id === llmInstructionResizeState.id);
+        if(!node) return;
+        const dy = (e.clientY - llmInstructionResizeState.startY) / viewport.scale;
+        const newInstrH = Math.max(PROMPT_LLM_INSTRUCTION_MIN_H, Math.min(PROMPT_LLM_INSTRUCTION_MAX_H, Math.round(llmInstructionResizeState.startH + dy)));
+        node.llmInstructionHeight = newInstrH;
+        // 只把“指令框的高度变化量”叠加到节点总高度上，保留用户手动拉大的上方区域，避免上方被重置变小。
+        node.h = Math.max(promptNodeExpandedHeight(node), Math.round(llmInstructionResizeState.startNodeH + (newInstrH - llmInstructionResizeState.startH)));
+        node.w = Math.max(Number(node.w) || 0, 316);
+        node.scale = 1;
+        updateNodeElementDuringResize(node);
+        const ta = world.querySelector(`.image-node[data-id="${CSS.escape(node.id)}"] .prompt-llm-instruction`);
+        if(ta) ta.style.height = `${promptLlmInstructionHeight(node)}px`;
+        return;
+    }
     if(thumbDragState){
         const dx = e.clientX - thumbDragState.startX;
         const dy = e.clientY - thumbDragState.startY;
@@ -11822,6 +12177,15 @@ window.onmouseup = e => {
         if(changed) render();
         scheduleSave();
     }
+    if(llmInstructionResizeState){
+        const node = nodes.find(n => n.id === llmInstructionResizeState.id);
+        const changed = node && promptLlmInstructionHeight(node) !== llmInstructionResizeState.startH;
+        document.body.classList.remove('smart-node-resize', 'smart-llm-instr-resize');
+        if(changed) commitPendingUndo(); else discardPendingUndo();
+        llmInstructionResizeState = null;
+        render();
+        scheduleSave();
+    }
     if(thumbDragState){
         if(!thumbDragState.detached) discardPendingUndo();
         thumbDragState = null;
@@ -11860,9 +12224,20 @@ window.onmouseup = e => {
         const insertHit = draggedNode?.type === 'smart-loop' && dragState.ctrlGroup && (dragState.group || []).length <= 1
             ? insertionConnectionForNode(draggedNode)
             : null;
+        const draggedRect = draggedNode ? nodeRect(draggedNode) : null;
+        const groupTarget = draggedNode && (draggedNode.images || []).length && (dragState.group || []).length <= 1 && draggedRect
+            ? rectOverlapNode(draggedNode.id, draggedRect.x, draggedRect.y, draggedRect.width, draggedRect.height, dragState.groupIds)
+            : null;
         if(
             insertHit &&
             insertLoopNodeIntoConnection(draggedNode, insertHit)
+        ){
+            stateChanged = true;
+            render();
+        } else if(
+            groupTarget &&
+            (groupTarget.images || []).length > 1 &&
+            mergeImageNodesIntoGroup(draggedNode.id, groupTarget.id)
         ){
             stateChanged = true;
             render();
@@ -11915,7 +12290,7 @@ window.onmouseup = e => {
     }
 };
 shell.addEventListener('wheel', e => {
-    if(e.target.closest('.composer,.smart-back,.image-edit-modal,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.log-modal,.shortcut-modal')) return;
+    if(e.target.closest('.composer,.smart-back,.image-edit-modal,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.workflow-transfer-panel,.log-modal,.shortcut-modal')) return;
     e.preventDefault();
     const rect = shell.getBoundingClientRect();
     const sx = e.clientX - rect.left;
@@ -11953,6 +12328,11 @@ window.addEventListener('paste', e => {
     if(files.length){
         lastImagePasteAt = Date.now();
         handleFiles(files, selectedId);
+        return;
+    }
+    // 素材库管理页「复制到画布」过来的素材：Ctrl+V 批量粘贴成图片节点
+    if(!isEditableTarget(e.target) && pasteAssetsFromInbox()){
+        e.preventDefault();
         return;
     }
     if(nodeClipboard?.nodes?.length && !isEditableTarget(e.target)){
@@ -12101,6 +12481,69 @@ fileInput.onchange = () => {
 };
 if(assetToggle) assetToggle.onclick = () => toggleAssetLibrary();
 if(assetCloseBtn) assetCloseBtn.onclick = () => toggleAssetLibrary(false);
+if(smartWorkflowToggle) smartWorkflowToggle.onclick = event => {
+    event.preventDefault();
+    event.stopPropagation();
+    if(smartWorkflowTransferModal?.classList.contains('open')) closeSmartWorkflowTransferModal();
+    else openSmartWorkflowTransferModal();
+};
+smartWorkflowImportInput?.addEventListener('change', event => {
+    const file = event.target.files?.[0];
+    if(file) importSmartWorkflowFile(file);
+    event.target.value = '';
+});
+smartWorkflowImportDropZone?.addEventListener('click', () => smartWorkflowImportInput?.click());
+smartWorkflowImportDropZone?.addEventListener('dragenter', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    smartWorkflowImportDropZone.classList.add('drag-over');
+});
+smartWorkflowImportDropZone?.addEventListener('dragover', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+    smartWorkflowImportDropZone.classList.add('drag-over');
+});
+smartWorkflowImportDropZone?.addEventListener('dragleave', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    if(!smartWorkflowImportDropZone.contains(event.relatedTarget)) smartWorkflowImportDropZone.classList.remove('drag-over');
+});
+smartWorkflowImportDropZone?.addEventListener('drop', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    smartWorkflowImportDropZone.classList.remove('drag-over');
+    const file = [...(event.dataTransfer?.files || [])].find(item => /\.(json|zip)$/i.test(item.name || ''));
+    if(file) importSmartWorkflowFile(file);
+    else toast('请拖入 JSON 或 ZIP 工作流文件');
+});
+smartWorkflowTransferModal?.addEventListener('pointerdown', e => e.stopPropagation());
+smartWorkflowTransferModal?.addEventListener('mousedown', e => e.stopPropagation());
+smartWorkflowTransferModal?.addEventListener('click', e => e.stopPropagation());
+smartWorkflowTransferModal?.addEventListener('wheel', event => {
+    event.stopPropagation();
+}, {passive:true, capture:true});
+smartWorkflowTransferModal?.addEventListener('dragover', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    if(smartWorkflowImportDropZone){
+        event.dataTransfer.dropEffect = 'copy';
+        smartWorkflowImportDropZone.classList.add('drag-over');
+    }
+});
+smartWorkflowTransferModal?.addEventListener('dragleave', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    if(!smartWorkflowTransferModal.contains(event.relatedTarget)) smartWorkflowImportDropZone?.classList.remove('drag-over');
+});
+smartWorkflowTransferModal?.addEventListener('drop', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    smartWorkflowImportDropZone?.classList.remove('drag-over');
+    const file = [...(event.dataTransfer?.files || [])].find(item => /\.(json|zip)$/i.test(item.name || ''));
+    if(file) importSmartWorkflowFile(file);
+    else toast('请拖入 JSON 或 ZIP 工作流文件');
+});
 assetPanel?.addEventListener('pointerdown', e => e.stopPropagation());
 assetPanel?.addEventListener('mousedown', e => e.stopPropagation());
 assetPanel?.addEventListener('click', e => e.stopPropagation());
@@ -12169,10 +12612,17 @@ promptTemplatePanel?.addEventListener('click', e => {
 if(promptPresetClose) promptPresetClose.onclick = closePromptPresetPanel;
 if(promptTemplateClose) promptTemplateClose.onclick = closePromptTemplatePanel;
 if(promptTemplateSearch) promptTemplateSearch.oninput = () => renderPromptTemplatePanel({preserveScroll:false});
-if(promptTemplateLibrarySelect) promptTemplateLibrarySelect.onchange = () => {
+if(promptTemplateLibrarySelect) promptTemplateLibrarySelect.onchange = async () => {
     activePromptLibraryId = promptTemplateLibrarySelect.value || 'system';
     promptTemplateSelectedId = '';
+    // 切换词库必须重置分类筛选，否则上一个库的分类（如系统的“视角”）会把新库内容过滤为空。
+    promptTemplateCategory = 'all';
     promptTemplateEditing = false;
+    // 拉取最新数据，确保素材库管理里新建/新增的词库与提示词在画布即时可见。
+    const want = activePromptLibraryId;
+    try { await loadPromptTemplates(); } catch(e){}
+    if(promptLibraries.some(lib => lib.id === want)) activePromptLibraryId = want;
+    renderPromptLibrarySelect();
     renderPromptTemplatePanel({preserveScroll:false});
 };
 if(composerTemplateBtn) composerTemplateBtn.onclick = event => {
@@ -12245,13 +12695,20 @@ if(promptPresetDelete) promptPresetDelete.onclick = () => {
     scheduleSave();
 };
 document.querySelectorAll('[data-asset-tab]').forEach(btn => {
-    btn.onclick = () => { assetTab = btn.dataset.assetTab; renderAssetLibrary(); };
+    btn.onclick = () => {
+        assetTab = btn.dataset.assetTab;
+        if(assetTab === 'workflow' && assetLibraryIsLocal()){
+            activeAssetLibraryId = assetLibrary.active_library_id || assetLibraries()[0]?.id || '';
+        }
+        renderAssetLibrary();
+    };
 });
 if(assetLibrarySelect) assetLibrarySelect.onchange = () => {
     activeAssetLibraryId = assetLibrarySelect.value || '';
     activeAssetCategoryId = '';
     activeWorkflowAssetCategoryId = '';
     mentionAssetCategoryId = '';
+    if(activeAssetLibraryId === LOCAL_ASSET_LIBRARY_ID) assetTab = 'image';
     renderAssetLibrary();
 };
 if(assetCategorySelect) assetCategorySelect.onchange = () => {
@@ -12259,19 +12716,21 @@ if(assetCategorySelect) assetCategorySelect.onchange = () => {
     else activeAssetCategoryId = assetCategorySelect.value;
     renderAssetLibrary();
 };
-const assetAddCategoryBtn = document.getElementById('assetAddCategoryBtn');
 if(assetAddCategoryBtn) assetAddCategoryBtn.onclick = async () => {
-    const name = await openAssetNameDialog({title:tr('smart.assetNewFolder'), value:tr('smart.assetFolder'), placeholder:tr('smart.assetFolder')});
+    if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
+    const workflowMode = currentAssetTabIsWorkflow();
+    const fallbackName = workflowMode ? '工作流' : tr('smart.assetFolder');
+    const name = await openAssetNameDialog({title:tr('smart.assetNewFolder'), value:fallbackName, placeholder:fallbackName});
     if(!name) return;
-    const data = await fetch('/api/asset-library/categories', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:activeAssetLibraryId, name, type:'image'})}).then(r => r.json());
-    activeAssetCategoryId = data.category?.id || activeAssetCategoryId;
+    const data = await fetch('/api/asset-library/categories', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:activeAssetLibraryId, name, type:workflowMode ? 'workflow' : 'image'})}).then(r => r.json());
+    setActiveAssetTabCategory(data.category?.id || '');
     setAssetLibraryFromResponse(data);
 };
-const assetRenameCategoryBtn = document.getElementById('assetRenameCategoryBtn');
 if(assetRenameCategoryBtn) assetRenameCategoryBtn.onclick = async () => {
-    const cat = activeAssetCategory();
+    if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
+    const cat = activeAssetTabCategory();
     if(!cat) return;
-    const name = await openAssetNameDialog({title:tr('smart.assetRenameFolder'), value:cat.name || '', placeholder:tr('smart.assetFolder')});
+    const name = await openAssetNameDialog({title:tr('smart.assetRenameFolder'), value:cat.name || '', placeholder:currentAssetTabIsWorkflow() ? '工作流' : tr('smart.assetFolder')});
     if(!name) return;
     const data = await fetch(`/api/asset-library/categories/${encodeURIComponent(cat.id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})}).then(r => r.json());
     setAssetLibraryFromResponse(data);
