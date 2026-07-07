@@ -19,6 +19,7 @@
   "build": {
     "appId": "com.infinitecanvas.desktop",
     "productName": "无限画布",
+    "publish": null,
     "artifactName": "${productName}-${version}.${ext}",
     "asar": false,
     "directories": {
