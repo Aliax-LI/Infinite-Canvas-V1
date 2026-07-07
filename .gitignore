@@ -43,6 +43,7 @@ output/
 assets/
 global_config.json
 history.json
+DESKTOP_BUILD_ID
 
 # User-specific data (keep tracked defaults like data/asset_library.json)
 data/api_providers.json

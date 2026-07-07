@@ -7,10 +7,11 @@
   "scripts": {
     "desktop": "electron .",
     "electron": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac dmg",
-    "dist:win": "electron-builder --win nsis zip"
+    "pack": "npm run prebuild:desktop && electron-builder --dir",
+    "dist": "npm run prebuild:desktop && electron-builder",
+    "dist:mac": "npm run prebuild:desktop && electron-builder --mac dmg",
+    "dist:win": "npm run prebuild:desktop && electron-builder --win nsis zip",
+    "prebuild:desktop": "node scripts/write-desktop-build-id.js"
   },
   "devDependencies": {
     "electron": "^37.2.0",
@@ -38,6 +39,7 @@
           "main.py",
           "requirements.txt",
           "VERSION",
+          "DESKTOP_BUILD_ID",
           "README.md",
           "LICENSE",
           "static/**",

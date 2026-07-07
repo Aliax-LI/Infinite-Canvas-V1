@@ -110,6 +110,17 @@ Windows: %APPDATA%/infinite-canvas-desktop/python/
 
 CLI 引导完成状态：`cli-setup-state.json`（同 userData 目录；跳过或完成后不再显示 CLI 步骤）
 
+## 安装后界面仍是旧版？
+
+打包应用会把程序文件复制到用户数据目录的 `runtime/`，**仅当 `VERSION` 或 `DESKTOP_BUILD_ID` 变化时才会覆盖更新**。若版本号未变（例如多次构建都是 `2026.07.6`），可能继续沿用旧缓存。
+
+**解决办法（任选其一）：**
+
+1. 安装新版安装包后完全退出应用，再重新打开（新版会写入新的 `DESKTOP_BUILD_ID` 并自动同步）
+2. 手动删除运行时缓存后重启：
+   - macOS：`~/Library/Application Support/infinite-canvas-desktop/runtime`
+   - Windows：`%APPDATA%/infinite-canvas-desktop/runtime`
+
 ## 备用脚本（仅开发/排障）
 
 `安装依赖.bat`、`mac-安装依赖.sh` 保留为开发者备用，普通用户无需使用。

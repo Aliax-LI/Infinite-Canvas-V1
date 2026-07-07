@@ -122,13 +122,16 @@ async function ensurePackagedRuntime() {
   const runtime = runtimeSourceDir();
   const bundledVersion = readTextIfExists(path.join(bundled, 'VERSION'));
   const runtimeVersion = readTextIfExists(path.join(runtime, 'VERSION'));
+  const bundledBuildId = readTextIfExists(path.join(bundled, 'DESKTOP_BUILD_ID'));
+  const runtimeBuildId = readTextIfExists(path.join(runtime, 'DESKTOP_BUILD_ID'));
   const runtimeMain = path.join(runtime, 'main.py');
   const bundledMain = path.join(bundled, 'main.py');
   const firstInstall = !fs.existsSync(runtimeMain);
   const bundledRepo = readGithubRepoUrl(bundledMain);
   const runtimeRepo = readGithubRepoUrl(runtimeMain);
   const repoChanged = !!(bundledRepo && runtimeRepo && bundledRepo !== runtimeRepo);
-  if (firstInstall || (bundledVersion && bundledVersion !== runtimeVersion) || repoChanged) {
+  const buildChanged = !!(bundledBuildId && bundledBuildId !== runtimeBuildId);
+  if (firstInstall || (bundledVersion && bundledVersion !== runtimeVersion) || buildChanged || repoChanged) {
     await copyDirMerge(bundled, runtime, bundled, { preserveUserState: !firstInstall });
   }
   await fsp.mkdir(path.join(runtime, 'data'), { recursive: true });

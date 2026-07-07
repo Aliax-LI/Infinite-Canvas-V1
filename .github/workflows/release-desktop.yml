@@ -75,6 +75,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           echo "$VERSION" > VERSION
+          echo "${{ needs.prepare.outputs.version }}+${{ github.sha }}" > DESKTOP_BUILD_ID
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -115,6 +116,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           echo "$VERSION" > VERSION
+          echo "${{ needs.prepare.outputs.version }}+${{ github.sha }}" > DESKTOP_BUILD_ID
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
