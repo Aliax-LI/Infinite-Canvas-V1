@@ -42,9 +42,11 @@ API/.env
 output/
 assets/
 global_config.json
+history.json
 
 # User-specific data (keep tracked defaults like data/asset_library.json)
 data/api_providers.json
+data/projects.json
 data/conversations/
 data/canvases/
 data/update_backups/
