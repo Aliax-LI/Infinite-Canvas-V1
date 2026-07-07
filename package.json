@@ -1,0 +1,89 @@
+{
+  "name": "infinite-canvas-desktop",
+  "version": "2026.07.6",
+  "private": true,
+  "description": "无限画布桌面应用",
+  "main": "electron/main.js",
+  "scripts": {
+    "desktop": "electron .",
+    "electron": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.infinitecanvas.desktop",
+    "productName": "无限画布",
+    "artifactName": "${productName}-${version}.${ext}",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".",
+        "to": "app-source",
+        "filter": [
+          "main.py",
+          "requirements.txt",
+          "VERSION",
+          "README.md",
+          "LICENSE",
+          "static/**",
+          "workflows/**",
+          "data/**",
+          "API/**",
+          "CLI/**",
+          "tools/**",
+          "mac-启动服务.command",
+          "mac-启动服务.sh",
+          "mac-安装依赖.sh",
+          "mac-修复权限.command",
+          "run.bat",
+          "安装依赖.bat",
+          "!node_modules/**",
+          "!dist-electron/**",
+          "!python/**",
+          "!packages/**",
+          "!.git/**",
+          "!.idea/**"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "icon": "build/icon.icns",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "无限画布",
+      "uninstallDisplayName": "无限画布",
+      "installerLanguages": ["zh_CN"],
+      "language": "2052"
+    },
+    "dmg": {
+      "title": "无限画布"
+    }
+  }
+}

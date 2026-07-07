@@ -151,7 +151,7 @@
         "api.getKey": { zh: "获取 Key", en: "Get Key" },
         "api.getKeyGlobal": { zh: "获取 Key · 国外", en: "Get Key · Global" },
         "api.getKeyCn": { zh: "获取 Key · 国内", en: "Get Key · China" },
-        "api.recommendKeyPlaceholder": { zh: "粘贴 {name} API Key", en: "Paste {name} API Key" },
+        "api.recommendKeyPlaceholder": { zh: "粘贴 {name} Key", en: "Paste {name} key" },
         "api.enterApiKey": { zh: "请输入 API Key", en: "Please enter an API Key" },
         "api.recommendSaved": { zh: "已保存 {name}，当前显示该平台配置。", en: "{name} saved. Showing that provider's settings now." },
         "api.viewPlans": { zh: "查看方案", en: "View Plans" },

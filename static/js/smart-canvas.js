@@ -11798,7 +11798,16 @@ function isLocalSmartImageDropValue(value){
     return (isWindowsPath || isPosixPath) && SMART_IMAGE_DROP_EXT_RE.test(clean);
 }
 function smartLocalImagePathsFromDataTransfer(dataTransfer){
-    return uniqueSmartDropValues(smartDropTextCandidates(dataTransfer).filter(isLocalSmartImageDropValue));
+    const textPaths = smartDropTextCandidates(dataTransfer).filter(isLocalSmartImageDropValue);
+    const desktopPaths = [];
+    const getPathForFile = window.infiniteCanvasDesktop?.getPathForFile;
+    if(getPathForFile && dataTransfer?.files?.length){
+        for(const file of dataTransfer.files){
+            const path = getPathForFile(file);
+            if(isLocalSmartImageDropValue(path)) desktopPaths.push(path);
+        }
+    }
+    return uniqueSmartDropValues([...textPaths, ...desktopPaths]);
 }
 function smartImageNameFromUrl(url){
     try {

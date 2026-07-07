@@ -2,79 +2,61 @@
 cd /d "%~dp0"
 
 echo ============================================
-echo   Install Dependencies
+echo   安装依赖
 echo ============================================
 echo.
 
-set "PYEXE=%~dp0python\python.exe"
-
-if exist "%PYEXE%" (
-    echo [OK] Using bundled Python
-) else (
-    echo [INFO] Bundled Python not found, trying system Python...
-    python --version >nul 2>&1
-    if errorlevel 1 (
-        echo [ERROR] Python not found.
-        echo Please put the extracted python folder in the same directory.
-        pause
-        exit /b 1
-    )
-    set "PYEXE=python"
-    echo [OK] Using system Python
+set "PYEXE="
+python --version >nul 2>&1
+if not errorlevel 1 set "PYEXE=python"
+if not defined PYEXE (
+    py --version >nul 2>&1
+    if not errorlevel 1 set "PYEXE=py"
+)
+if not defined PYEXE (
+    python3 --version >nul 2>&1
+    if not errorlevel 1 set "PYEXE=python3"
 )
 
-echo.
-
-"%PYEXE%" -m pip --version >nul 2>&1
-if errorlevel 1 (
-    echo [1/3] Installing pip via get-pip.py...
-    if not exist "%~dp0get-pip.py" (
-        echo Downloading get-pip.py...
-        powershell -Command "Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%~dp0get-pip.py'" 2>nul
-        if not exist "%~dp0get-pip.py" (
-            echo [ERROR] Failed to download get-pip.py. Check network connection.
-            pause
-            exit /b 1
-        )
-    )
-    "%PYEXE%" "%~dp0get-pip.py" --quiet
-    if errorlevel 1 (
-        echo [ERROR] Failed to install pip.
-        pause
-        exit /b 1
-    )
-    echo [OK] pip installed.
-)
-
-echo.
-echo [2/3] Trying offline install from packages folder...
-"%PYEXE%" -m pip install --no-index --find-links=packages -r requirements.txt
-if not errorlevel 1 (
-    echo.
-    echo [OK] Offline install succeeded.
-    goto :extra
-)
-
-echo [3/3] Offline failed, trying online install...
-"%PYEXE%" -m pip install -r requirements.txt
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Install failed. Check your network connection.
+if not defined PYEXE (
+    echo [错误] 未找到 Python。请先安装 Python 3.10+：
+    echo https://www.python.org/downloads/
     pause
     exit /b 1
 )
 
-:extra
+echo [OK] 使用 %PYEXE%
 echo.
-echo [Extra] Installing WebSocket support for Uvicorn...
-"%PYEXE%" -m pip install "uvicorn[standard]"
+
+"%PYEXE%" -m pip --version >nul 2>&1
 if errorlevel 1 (
-    echo [WARN] Failed to install uvicorn[standard]. WebSocket features may be unavailable.
+    echo [1/2] 正在安装 pip...
+    "%PYEXE%" -m ensurepip --upgrade
+    if errorlevel 1 (
+        echo [错误] pip 安装失败。
+        pause
+        exit /b 1
+    )
 )
 
-:done
+echo [2/2] 正在从清华镜像安装 requirements.txt 中的依赖...
+"%PYEXE%" -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
+if errorlevel 1 (
+    echo.
+    echo [错误] 依赖安装失败，请检查网络连接后重试。
+    pause
+    exit /b 1
+)
+
+echo.
+echo [额外] 安装 WebSocket 支持（清华镜像）...
+"%PYEXE%" -m pip install "uvicorn[standard]" -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
+if errorlevel 1 (
+    echo [警告] uvicorn[standard] 安装失败，WebSocket 功能可能不可用。
+)
+
 echo.
 echo ============================================
-echo   Done. Run start.bat to launch the server.
+echo   安装完成。可运行桌面应用或 run.bat 启动。
 echo ============================================
 pause

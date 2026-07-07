@@ -1,8 +1,96 @@
+@import url('/static/vendor/css/fonts.css?v=2026.07.6.1783393380');
+
+/* Typography tokens — Space Grotesk UI, JetBrains Mono code */
+:root {
+    --font-sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --studio-surface: #f7f7f8;
+    --studio-surface-dark: #0f141d;
+}
+
+html,
+body {
+    font-family: var(--font-sans);
+    font-style: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+em,
+i,
+cite,
+var,
+address,
+dfn {
+    font-style: normal;
+}
+
+.italic,
+[class~="italic"] {
+    font-style: normal !important;
+}
+
+code,
+kbd,
+pre,
+samp {
+    font-family: var(--font-mono);
+    font-style: normal;
+}
+
+/* Flat layout shells — global zero-radius surfaces aligned with sidebar */
+
+.stage,
+.app-shell,
+.settings-shell,
+.tools-page,
+.page,
+.wrap,
+.sidebar,
+.block,
+.content-head,
+.recommend-card,
+.settings-card,
+.settings-about-hero,
+.tool-card,
+.console-card,
+.nano-input,
+.result-frame,
+.engine-panel,
+.tool-panel,
+.control-panel,
+.panel,
+.gate-panel,
+.canvas-item,
+.composer,
+.history-popover,
+.asset-page,
+.status-row,
+.cli-card {
+    border-radius: 0 !important;
+}
+
+html:not(.studio-theme-dark) body:not(.studio-theme-dark) {
+    --bg: #f7f7f8;
+    --bg-base: #f7f7f8;
+    --page: #f7f7f8;
+}
+
+html:not(.studio-theme-dark) body:not(.studio-theme-dark) .stage,
+html:not(.studio-theme-dark) body:not(.studio-theme-dark) .app-shell,
+html:not(.studio-theme-dark) body:not(.studio-theme-dark) .settings-shell,
+html:not(.studio-theme-dark) body:not(.studio-theme-dark) .tools-page,
+html:not(.studio-theme-dark) body:not(.studio-theme-dark) .page,
+html:not(.studio-theme-dark) body:not(.studio-theme-dark) body {
+    background: #f7f7f8 !important;
+}
+
+
 html.studio-theme-dark,
 html.studio-theme-dark body,
 body.studio-theme-dark {
     color-scheme: dark;
-    background: #08090c !important;
+    background: #0f141d !important;
     color: #e8e8ea !important;
 }
 
@@ -32,7 +120,7 @@ body {
     border: 3px solid transparent !important;
     border-right-width: 3px !important;
     background-clip: padding-box !important;
-    border-radius: 999px !important;
+    border-radius: 0 !important;
 }
 
 *::-webkit-scrollbar-thumb:hover {
@@ -797,7 +885,7 @@ body.studio-theme-dark .output-drag-preview,
     width: 150px;
     height: 150px;
     padding: 8px;
-    border-radius: 18px;
+    border-radius: 0;
     background: #0f141d;
     border: 1px solid rgba(148,163,184,.18);
     box-shadow: 0 16px 40px rgba(0,0,0,.28);
@@ -809,7 +897,7 @@ body.studio-theme-dark .output-drag-preview,
     width: 100%;
     height: 100%;
     object-fit: contain;
-    border-radius: 12px;
+    border-radius: 0;
     background: #0f141d;
 }
 
@@ -1165,7 +1253,7 @@ body.studio-theme-dark .shell {
 
 html.studio-theme-dark body .stage,
 body.studio-theme-dark .stage {
-    background: #111722 !important;
+    background: #0f141d !important;
 }
 
 html.studio-theme-dark body .console-card,
@@ -1384,13 +1472,13 @@ html.studio-theme-dark body .engine-btn,
 body.studio-theme-dark .engine-btn,
 html.studio-theme-dark body .provider-btn,
 body.studio-theme-dark .provider-btn {
-    border-radius: 999px !important;
+    border-radius: 0 !important;
     letter-spacing: .02em !important;
 }
 
 html.studio-theme-dark body .provider-switch button,
 body.studio-theme-dark .provider-switch button {
-    border-radius: 999px !important;
+    border-radius: 0 !important;
     min-height: 30px !important;
     font-size: 10px !important;
     font-weight: 600 !important;
@@ -1604,7 +1692,7 @@ body.studio-theme-dark .shell .node {
 
 html.studio-theme-dark body .shell .node-head,
 body.studio-theme-dark .shell .node-head {
-    border-radius: 21px 21px 0 0 !important;
+    border-radius: 0 0 0 !important;
     overflow: hidden !important;
     background-clip: padding-box !important;
 }

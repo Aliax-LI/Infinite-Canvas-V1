@@ -31,6 +31,7 @@ const jimengHelpOutput = document.getElementById('jimengHelpOutput');
 const codexCliPanel = document.getElementById('codexCliPanel');
 const codexCliStatus = document.getElementById('codexCliStatus');
 const codexCliInfo = document.getElementById('codexCliInfo');
+const codexImage2InstallBtn = document.getElementById('codexImage2InstallBtn');
 const codexHelpOverlay = document.getElementById('codexHelpOverlay');
 const codexHelpCommand = document.getElementById('codexHelpCommand');
 const codexHelpOutput = document.getElementById('codexHelpOutput');
@@ -2146,6 +2147,7 @@ function syncRecommendView(){
     if(recommendTitle) recommendTitle.textContent = tr('api.recommendPanelTitle');
     if(recommendSub) recommendSub.textContent = tr('api.recommendPanelSub');
     document.body.classList.toggle('show-recommend-mode', recommendInlineOpen);
+    refreshIcons();
 }
 function focusRecommendKey(event, index){
     if(event?.target?.closest?.('a,button,input,textarea,select,label')) return;
@@ -2155,6 +2157,25 @@ function focusRecommendKey(event, index){
         input.scrollIntoView({block:'nearest', inline:'nearest'});
     }
 }
+function recommendKeyShortName(name){
+    const raw = String(name || '').trim();
+    if(!raw) return '';
+    return raw.replace(/\s*API\s*$/i, '').trim() || raw;
+}
+function recommendGetKeyLinksHtml(api){
+    if(api.register_url_cn){
+        return `
+            <span class="recommend-key-links">
+                <a class="recommend-get-key-link" href="${escapeAttr(api.register_url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><i data-lucide="key-round" class="w-3 h-3"></i><span>${escapeHtml(tr('api.getKeyGlobal'))}</span></a>
+                <span class="recommend-key-links-sep" aria-hidden="true">·</span>
+                <a class="recommend-get-key-link" href="${escapeAttr(api.register_url_cn)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><i data-lucide="key-round" class="w-3 h-3"></i><span>${escapeHtml(tr('api.getKeyCn'))}</span></a>
+            </span>
+        `;
+    }
+    return `
+        <a class="recommend-get-key-link" href="${escapeAttr(api.register_url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><i data-lucide="key-round" class="w-3 h-3"></i><span>${escapeHtml(tr('api.getKey'))}</span></a>
+    `;
+}
 function renderRecommendApi(){
     if(!recommendPanel) return;
     if(!recommendInlineOpen){
@@ -2163,41 +2184,26 @@ function renderRecommendApi(){
     }
     const recommendCardHtml = (api, index) => `
         <section class="recommend-card recommend-platform-card" style="--recommend-index:${index}" onclick="focusRecommendKey(event, ${index})">
-            <div class="recommend-platform-info">
-                <div class="recommend-platform-head">
-                    <div>
-                        <div class="recommend-name"><span>${escapeHtml(api.name)}</span></div>
-                    </div>
+            <header class="recommend-card-header">
+                <div class="recommend-card-header-main">
+                    <div class="recommend-name"><span>${escapeHtml(api.name)}</span></div>
+                    ${recommendGetKeyLinksHtml(api)}
                     <span class="recommend-badge">${escapeHtml(api.protocol === 'apimart' ? 'APIMart' : 'OpenAI')}</span>
                 </div>
-                <p class="recommend-platform-summary">${escapeHtml(tr(api.summaryKey))}</p>
-                <div class="recommend-tags">
-                    ${(api.perks || (api.perkKey ? [{key:api.perkKey, className:api.perkClass || ''}] : [])).map(perk => `<span class="recommend-tag recommend-perk-tag ${escapeAttr(perk.className || '')}"><i data-lucide="gift" class="w-3 h-3"></i><span>${escapeHtml(tr(perk.key))}</span></span>`).join('')}
-                    ${(api.tagKeys || []).map(tag => `<span class="recommend-tag">${escapeHtml(tag.startsWith('api.') ? tr(tag) : tag)}</span>`).join('')}
-                </div>
-            </div>
-            <div class="recommend-platform-setup">
-                <div class="recommend-setup-title">${escapeHtml(tr('api.recommendQuickSetup'))}</div>
-                <div class="recommend-quick-stack recommend-setup-flow">
-                    <div class="recommend-guide-source onboarding-rh-source-group">
-                        <div class="onboarding-rh-source-label">${escapeHtml(tr('api.getKey'))}</div>
-                        <div class="onboarding-key-actions onboarding-rh-key-actions ${api.register_url_cn ? 'recommend-guide-key-stack' : 'recommend-single-action'}">
-                            ${api.register_url_cn ? `
-                            <a class="onboarding-key-btn recommend-guide-key-btn" href="${escapeAttr(api.register_url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="key-round" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr('api.getKeyGlobal'))}</span></a>
-                            <a class="onboarding-key-btn recommend-guide-key-btn" href="${escapeAttr(api.register_url_cn)}" target="_blank" rel="noopener noreferrer"><i data-lucide="key-round" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr('api.getKeyCn'))}</span></a>
-                            ` : `
-                            <a class="onboarding-key-btn recommend-guide-key-btn" href="${escapeAttr(api.register_url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="key-round" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr('api.getKey'))}</span></a>
-                            `}
-                        </div>
+                <button class="onboarding-save-btn recommend-card-save-top" type="button" onclick="event.stopPropagation(); saveRecommendedApi(${index})"><span>${escapeHtml(tr('api.save'))}</span></button>
+            </header>
+            <div class="recommend-card-columns">
+                <div class="recommend-platform-info">
+                    <p class="recommend-platform-summary">${escapeHtml(tr(api.summaryKey))}</p>
+                    <div class="recommend-tags">
+                        ${(api.perks || (api.perkKey ? [{key:api.perkKey, className:api.perkClass || ''}] : [])).map(perk => `<span class="recommend-tag recommend-perk-tag ${escapeAttr(perk.className || '')}"><i data-lucide="gift" class="w-3 h-3"></i><span>${escapeHtml(tr(perk.key))}</span></span>`).join('')}
+                        ${(api.tagKeys || []).map(tag => `<span class="recommend-tag">${escapeHtml(tag.startsWith('api.') ? tr(tag) : tag)}</span>`).join('')}
                     </div>
-                    <div class="recommend-flow-arrow onboarding-flow-arrow recommend-guide-arrow" aria-hidden="true"><span></span><b></b></div>
-                    <div class="recommend-guide-save">
-                        <label class="onboarding-key-field onboarding-rh-row-field">
-                            <span>API Key</span>
-                            <input type="password" data-recommend-key="${index}" placeholder="${escapeAttr(trf('api.recommendKeyPlaceholder', {name:api.name}))}">
-                            ${api.keyHint ? `<em class="recommend-key-hint">${escapeHtml(api.keyHint)}</em>` : ''}
-                        </label>
-                        <button class="onboarding-save-btn recommend-guide-save-btn" type="button" onclick="saveRecommendedApi(${index})"><span>${escapeHtml(tr('api.save'))}</span></button>
+                </div>
+                <div class="recommend-platform-setup">
+                    <div class="recommend-setup-compact">
+                        <input type="password" class="recommend-compact-input" data-recommend-key="${index}" placeholder="${escapeAttr(trf('api.recommendKeyPlaceholder', {name:recommendKeyShortName(api.name)}))}">
+                        ${api.keyHint ? `<em class="recommend-key-hint">${escapeHtml(api.keyHint)}</em>` : ''}
                     </div>
                 </div>
             </div>
@@ -2312,69 +2318,79 @@ function providerDragAttrs(item){
     const id = escapeAttr(item.id);
     return ` draggable="true" data-provider-id="${id}" ondragstart="handleProviderDragStart(event,'${id}')" ondragover="handleProviderDragOver(event,'${id}')" ondrop="handleProviderDrop(event,'${id}')" ondragend="handleProviderDragEnd()"`;
 }
+function providerListDisplayName(item){
+    if(item.id === 'modelscope') return 'ModelScope';
+    if(item.id === 'runninghub') return 'RunningHub';
+    if(item.id === 'volcengine') return '火山引擎';
+    return item.name || item.id;
+}
+function providerListSubline(item){
+    const protocol = String(item.protocol || 'openai').toLowerCase();
+    if(CLI_PROTOCOLS.has(protocol)) return 'CLI 本地工具';
+    if(item.base_url) return item.base_url;
+    if(item.id === 'modelscope') return MS_DEFAULT_BASE_URL;
+    if(item.id === 'runninghub') return RH_DEFAULT_BASE_URL;
+    if(item.id === 'volcengine') return VOLCENGINE_DEFAULT_BASE_URL;
+    return '未配置地址';
+}
+function providerListBadge(item){
+    const protocol = String(item.protocol || 'openai').toLowerCase();
+    if(CLI_PROTOCOLS.has(protocol)) return 'CLI';
+    if(item.id === 'runninghub') return 'RH';
+    if(item.id === 'volcengine') return 'Ark';
+    if(item.id === 'modelscope') return 'OpenAI';
+    const label = String(item.protocol || 'openai').toUpperCase();
+    return label.length > 6 ? label.slice(0, 6) : label;
+}
+function providerListIconHtml(item){
+    const protocol = String(item.protocol || 'openai').toLowerCase();
+    if(item.id === 'modelscope'){
+        return `<span class="provider-icon provider-icon--brand">
+            <img src="/static/images/modelscope.gif" alt="" class="provider-brand-img ms-icon-light">
+            <img src="/static/images/modelscope-1.gif" alt="" class="provider-brand-img ms-icon-dark">
+        </span>`;
+    }
+    if(item.id === 'runninghub'){
+        return `<span class="provider-icon provider-icon--brand">
+            <img src="/static/images/RunningHub-B.png" alt="" class="provider-brand-img runninghub-icon ms-icon-light">
+            <img src="/static/images/RunningHub-W.png" alt="" class="provider-brand-img runninghub-icon ms-icon-dark">
+        </span>`;
+    }
+    if(item.id === 'volcengine'){
+        return `<span class="provider-icon provider-icon--brand">
+            <img src="/static/images/volcengine-theme-light.svg" alt="" class="provider-brand-img volcengine-icon ms-icon-light">
+            <img src="/static/images/volcengine-theme-dark.svg" alt="" class="provider-brand-img volcengine-icon ms-icon-dark">
+        </span>`;
+    }
+    if(CLI_PROTOCOLS.has(protocol)){
+        const icon = protocol === 'codex' ? 'terminal' : protocol === 'gemini-cli' ? 'sparkles' : 'image';
+        return `<span class="provider-icon"><i data-lucide="${icon}" class="w-4 h-4"></i></span>`;
+    }
+    const keyIcon = item.has_key || item.has_wallet_key ? 'key-round' : 'key';
+    return `<span class="provider-icon"><i data-lucide="${keyIcon}" class="w-4 h-4"></i></span>`;
+}
+function renderProviderCard(item){
+    const active = item.id === selectedId ? 'active' : '';
+    const itemProtocol = String(item.protocol || 'openai').toLowerCase();
+    const stateClass = item.enabled === false ? 'is-disabled' : (item.has_key || item.has_wallet_key || CLI_PROTOCOLS.has(itemProtocol) ? 'has-key' : 'missing-key');
+    const sortableClass = isFixedProvider(item) ? '' : 'provider-card-sortable';
+    const subline = providerListSubline(item);
+    return `
+        <button class="provider-card ${sortableClass} ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')"${providerDragAttrs(item)}>
+            <span class="provider-drag-gutter" aria-hidden="true">
+                <span class="provider-drag-handle"><i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i></span>
+            </span>
+            ${providerListIconHtml(item)}
+            <span class="provider-info">
+                <span class="provider-name">${escapeHtml(providerListDisplayName(item))}</span>
+                <span class="provider-meta">${escapeHtml(subline)}</span>
+            </span>
+            <span class="provider-badge">${escapeHtml(providerListBadge(item))}</span>
+        </button>
+    `;
+}
 function renderProviderList(){
-    providerList.innerHTML = sortedProviders().map(item => {
-        const active = item.id === selectedId ? 'active' : '';
-        const itemProtocol = String(item.protocol || 'openai').toLowerCase();
-        const stateClass = item.enabled === false ? 'is-disabled' : (item.has_key || item.has_wallet_key || CLI_PROTOCOLS.has(itemProtocol) ? 'has-key' : 'missing-key');
-        const protocolLabel = item.id === 'runninghub' ? 'RH' : String(item.protocol || 'openai').toUpperCase();
-        if(item.id === 'modelscope'){
-            return `
-                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
-                    <span class="provider-banner-inner">
-                        <span class="provider-logo-wrap">
-                            <img src="/static/images/modelscope.gif" alt="ModelScope" class="ms-icon-light">
-                            <img src="/static/images/modelscope-1.gif" alt="ModelScope" class="ms-icon-dark">
-                            <span class="provider-logo-fallback">ModelScope</span>
-                        </span>
-                        <span class="provider-protocol-pill">OpenAI</span>
-                    </span>
-                </button>
-            `;
-        }
-        if(item.id === 'runninghub'){
-            return `
-                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
-                    <span class="provider-banner-inner">
-                        <span class="provider-logo-wrap">
-                            <img src="/static/images/RunningHub-B.png" alt="RunningHub" class="runninghub-icon ms-icon-light">
-                            <img src="/static/images/RunningHub-W.png" alt="RunningHub" class="runninghub-icon ms-icon-dark">
-                            <span class="provider-logo-fallback">RunningHub</span>
-                        </span>
-                        <span class="provider-protocol-pill">RH</span>
-                    </span>
-                </button>
-            `;
-        }
-        if(item.id === 'volcengine'){
-            return `
-                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
-                    <span class="provider-banner-inner">
-                        <span class="provider-logo-wrap">
-                            <img src="/static/images/volcengine-theme-light.svg" alt="火山引擎" class="volcengine-icon ms-icon-light">
-                            <img src="/static/images/volcengine-theme-dark.svg" alt="火山引擎" class="volcengine-icon ms-icon-dark">
-                            <span class="provider-logo-fallback">火山引擎</span>
-                        </span>
-                        <span class="provider-protocol-pill">Ark</span>
-                    </span>
-                </button>
-            `;
-        }
-        return `
-            <button class="provider-card provider-card-sortable ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')"${providerDragAttrs(item)}>
-                <span class="provider-drag-handle" aria-hidden="true"><i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i></span>
-                <span class="provider-mark"><i data-lucide="${item.has_key ? 'key-round' : 'key'}" class="w-4 h-4"></i></span>
-                <span class="provider-info">
-                    <div class="provider-name">${escapeHtml(item.name || item.id)}</div>
-                    <div class="provider-meta">${escapeHtml(item.base_url || '未配置地址')}</div>
-                </span>
-                <span class="provider-side-meta">
-                    <span class="provider-status-dot"></span>
-                    <span class="provider-protocol-pill">${escapeHtml(protocolLabel)}</span>
-                </span>
-            </button>
-        `;
-    }).join('');
+    providerList.innerHTML = sortedProviders().map(renderProviderCard).join('');
     refreshIcons();
 }
 function handleProviderDragStart(event, id){
@@ -2709,12 +2725,18 @@ function setCodexStatus(text, ok=null){
     codexCliStatus.classList.toggle('ok', ok === true);
     codexCliStatus.classList.toggle('bad', ok === false);
 }
+function syncCodexImage2InstallBtn(installed){
+    if(!codexImage2InstallBtn) return;
+    codexImage2InstallBtn.hidden = installed === true;
+    codexImage2InstallBtn.disabled = false;
+}
 async function refreshCodexStatus(showInfo=true){
     if(!codexCliPanel || codexCliPanel.hidden) return;
     setCodexStatus('检测中...');
     try {
         const data = await fetch('/api/codex/status').then(r => r.json());
         setCodexStatus(data.installed ? '已安装' : '未安装', data.installed === true);
+        syncCodexImage2InstallBtn(data.image2_helper_installed === true);
         if(showInfo && codexCliInfo){
             const parts = [];
             if(data.version) parts.push(data.version);
@@ -2725,6 +2747,28 @@ async function refreshCodexStatus(showInfo=true){
     } catch(e){
         setCodexStatus('检测失败', false);
         if(codexCliInfo) codexCliInfo.textContent = e.message || String(e);
+    }
+}
+async function installCodexImage2Helper(){
+    if(!codexImage2InstallBtn) return;
+    const label = codexImage2InstallBtn.querySelector('span');
+    const prev = label?.textContent || '';
+    codexImage2InstallBtn.disabled = true;
+    if(label) label.textContent = '安装中...';
+    try {
+        const data = await fetch('/api/codex/install-image-helper', {method:'POST'}).then(async r => {
+            const json = await r.json();
+            if(!r.ok) throw new Error(json.detail || json.message || '安装失败');
+            return json;
+        });
+        syncCodexImage2InstallBtn(true);
+        if(codexCliInfo && data.message) codexCliInfo.textContent = data.message;
+        await refreshCodexStatus(false);
+    } catch(e){
+        if(codexCliInfo) codexCliInfo.textContent = e.message || String(e);
+    } finally {
+        codexImage2InstallBtn.disabled = false;
+        if(label) label.textContent = prev;
     }
 }
 function openCodexHelp(){

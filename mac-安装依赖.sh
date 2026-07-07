@@ -1,37 +1,30 @@
 #!/bin/bash
 cd "$(dirname "$0")"
+
+PIP_INDEX="https://pypi.tuna.tsinghua.edu.cn/simple"
+PIP_HOST="pypi.tuna.tsinghua.edu.cn"
+
 echo "============================================"
-echo "   Installing dependencies (offline)"
+echo "   安装依赖（国内镜像）"
 echo "============================================"
 echo ""
 
-# Check Python
 if ! command -v python3 &> /dev/null; then
-    echo "[ERROR] Python not found. Please install Python 3.10+"
-    echo "Download: https://www.python.org/downloads/"
-    read -p "Press Enter to exit..."
+    echo "[错误] 未找到 Python 3.10+"
     exit 1
 fi
 
 python3 --version
+echo ""
+
+python3 -m pip install -r requirements.txt -i "$PIP_INDEX" --trusted-host "$PIP_HOST" || {
+    echo "[重试] 切换阿里云镜像..."
+    PIP_INDEX="https://mirrors.aliyun.com/pypi/simple"
+    PIP_HOST="mirrors.aliyun.com"
+    python3 -m pip install -r requirements.txt -i "$PIP_INDEX" --trusted-host "$PIP_HOST"
+}
+
+python3 -m pip install "uvicorn[standard]" -i "$PIP_INDEX" --trusted-host "$PIP_HOST"
 
 echo ""
-echo "[1/2] Checking pip..."
-python3 -m pip --version &> /dev/null
-if [ $? -ne 0 ]; then
-    echo "pip not found, bootstrapping..."
-    python3 -m ensurepip --upgrade
-fi
-
-echo "[2/2] Installing from local packages folder..."
-python3 -m pip install --no-index --find-links=packages -r requirements.txt
-
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[WARN] Offline install failed, trying online..."
-    python3 -m pip install -r requirements.txt
-fi
-
-echo ""
-echo "Done. Run './启动服务.sh' to start."
-read -p "Press Enter to exit..."
+echo "安装完成。"

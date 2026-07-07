@@ -573,8 +573,13 @@ async function loadLocalAssets(){
     return localAssets;
 }
 async function registerSharedFolder(){
-    const tip = '请输入要登记的共享文件夹路径（必须位于项目目录内，例如 assets\\library 或 output）：';
-    const path = window.prompt(tip, '');
+    let path = '';
+    if(window.infiniteCanvasDesktop?.chooseFolder){
+        path = await window.infiniteCanvasDesktop.chooseFolder();
+    } else {
+        const tip = '请输入要登记的共享文件夹路径（必须位于项目目录内，例如 assets\\library 或 output）：';
+        path = window.prompt(tip, '');
+    }
     if(!String(path || '').trim()) return;
     try {
         setStatus('正在登记共享文件夹...');

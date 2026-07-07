@@ -77,7 +77,7 @@ const STYLES = `
   .pr-wrapper.drag-active {
     outline: 2px dashed #888;
     background: rgba(255, 255, 255, 0.05);
-    border-radius: 6px;
+    border-radius: 0;
   }
   .pr-toolbar {
     display: flex;
@@ -96,7 +96,7 @@ const STYLES = `
     background: #222;
     color: #e0e0e0;
     border: 1px solid #111;
-    border-radius: 4px;
+    border-radius: 0;
     padding: 6px 12px;
     font-size: 11px;
     font-weight: 500;
@@ -116,7 +116,7 @@ const STYLES = `
     color: #ffaaaa;
   }
   .pr-canvas {
-    border-radius: 6px;
+    border-radius: 0;
     border: 1px solid #111;
     background: #2a2a2a;
     cursor: pointer;
@@ -149,7 +149,7 @@ const STYLES = `
     background: #222;
     color: #e0e0e0;
     border: 1px solid #111;
-    border-radius: 6px;
+    border-radius: 0;
     padding: 8px;
     resize: vertical;
     font-size: 12px;
@@ -167,7 +167,7 @@ const STYLES = `
     background: #181818;
     color: #aaa;
     border: 1px solid #111;
-    border-radius: 6px;
+    border-radius: 0;
     padding: 10px;
     font-size: 12px;
     line-height: 1.6;
@@ -178,7 +178,7 @@ const STYLES = `
   .pr-controls-group {
     background: #1e1e1e;
     border: 1px solid #333;
-    border-radius: 6px;
+    border-radius: 0;
     padding: 6px 10px;
     display: flex;
     flex-direction: column;
@@ -198,7 +198,7 @@ const STYLES = `
     height: 6px;
     background: #2a2a2a;
     cursor: ns-resize;
-    border-radius: 3px;
+    border-radius: 0;
     margin: 2px 0;
     transition: background 0.15s;
     border: 1px solid #1e1e1e;
@@ -220,7 +220,7 @@ const STYLES = `
     width: 80px;
     height: 4px;
     background: #444;
-    border-radius: 2px;
+    border-radius: 0;
     outline: none;
     cursor: pointer;
     border: 1px solid #222;
@@ -243,7 +243,7 @@ const STYLES = `
     color: #fff;
     background: #222;
     border: 1px solid #444;
-    border-radius: 4px;
+    border-radius: 0;
     width: 52px;
     text-align: center;
     padding: 3px;
@@ -264,7 +264,7 @@ const STYLES = `
     position: fixed;
     background: #1e1e1e;
     border: 1px solid #444;
-    border-radius: 6px;
+    border-radius: 0;
     padding: 4px;
     display: flex;
     flex-direction: column;
@@ -276,7 +276,7 @@ const STYLES = `
     background: #2a2a2a;
     color: #e0e0e0;
     border: 1px solid #333;
-    border-radius: 4px;
+    border-radius: 0;
     padding: 6px 14px;
     font-size: 11px;
     font-family: inherit;
@@ -307,7 +307,7 @@ const STYLES = `
     color: #eee;
     cursor: pointer;
     padding: 6px 12px;
-    border-radius: 4px;
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -331,7 +331,7 @@ const STYLES = `
     appearance: none;
     height: 6px;
     background: #444;
-    border-radius: 3px;
+    border-radius: 0;
     outline: none;
     cursor: pointer;
     border: 1px solid #222;
@@ -356,11 +356,11 @@ const STYLES = `
   }
   .pr-timeline-viewport::-webkit-scrollbar-track {
     background: #151515;
-    border-radius: 5px;
+    border-radius: 0;
   }
   .pr-timeline-viewport::-webkit-scrollbar-thumb {
     background: #444;
-    border-radius: 5px;
+    border-radius: 0;
     border: 1px solid #000;
   }
   .pr-timeline-viewport::-webkit-scrollbar-thumb:hover {
@@ -379,7 +379,7 @@ const STYLES = `
     appearance: none;
     height: 4px;
     background: #444;
-    border-radius: 2px;
+    border-radius: 0;
     outline: none;
     cursor: pointer;
   }
@@ -412,7 +412,7 @@ const STYLES = `
     position: fixed;
     background: #1e1e1e;
     border: 1px solid #444;
-    border-radius: 6px;
+    border-radius: 0;
     padding: 10px;
     display: flex;
     flex-direction: column;
@@ -447,7 +447,7 @@ const STYLES = `
     display: flex;
     align-items: center;
     border: 1px solid #444;
-    border-radius: 4px;
+    border-radius: 0;
     background: #2a2a2a;
     overflow: hidden;
   }
@@ -491,7 +491,7 @@ const STYLES = `
     background: #2a2a2a;
     color: #e0e0e0;
     border: 1px solid #444;
-    border-radius: 4px;
+    border-radius: 0;
     padding: 3px 4px;
     font-size: 12px;
     width: 98px;
@@ -507,7 +507,7 @@ const STYLES = `
     background: #252525;
     color: #aaa;
     border: 1px solid #333;
-    border-radius: 4px;
+    border-radius: 0;
     padding: 5px 8px;
     font-size: 11px;
     cursor: pointer;
@@ -528,7 +528,7 @@ const STYLES = `
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    border-radius: 0;
     transition: all 0.15s;
   }
   .pr-settings-close-btn:hover {
@@ -539,7 +539,7 @@ const STYLES = `
     display: flex;
     background: #1e1e1e;
     border: 1px solid #333;
-    border-radius: 6px;
+    border-radius: 0;
     padding: 2px;
     width: 110px;
     height: 22px;
@@ -553,7 +553,7 @@ const STYLES = `
     font-weight: 500;
     line-height: 18px;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 0;
     color: #888;
     transition: all 0.15s ease;
   }

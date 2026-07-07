@@ -64,6 +64,13 @@
         return JSON.parse(JSON.stringify(dict));
     }
 
-    window.StudioI18n = { t, apply, set, toggle, lang, register, entries };
-    document.addEventListener('DOMContentLoaded', () => apply());
+    let resolveReady;
+    const ready = new Promise(resolve => { resolveReady = resolve; });
+    window._studioI18nResolveReady = resolveReady;
+
+    window.StudioI18n = { t, apply, set, toggle, lang, register, entries, ready };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        ready.then(() => apply());
+    });
 })();

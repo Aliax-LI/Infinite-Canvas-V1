@@ -37,7 +37,7 @@
             }
             .hbm-btn {
                 display: inline-flex; align-items: center; gap: 6px;
-                height: 36px; padding: 0 16px; border-radius: 999px;
+                height: 36px; padding: 0 16px; border-radius: 0;
                 border: 1px solid #e2e8f0; background: #fff; color: #111827;
                 font-size: 11px; font-weight: 800; letter-spacing: .04em;
                 text-transform: uppercase; cursor: pointer;

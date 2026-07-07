@@ -163,10 +163,10 @@ class ConnectionManager:
 manager = ConnectionManager()
 GLOBAL_LOOP = None
 APP_VERSION = "2026.06.03"
-GITHUB_REPO_URL = "https://github.com/hero8152/Infinite-Canvas"
-GITHUB_VERSION_URL = "https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main/VERSION"
-GITHUB_TREE_URL = "https://api.github.com/repos/hero8152/Infinite-Canvas/git/trees/main?recursive=1"
-GITHUB_RAW_ROOT = "https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main"
+GITHUB_REPO_URL = "https://github.com/Aliax-LI/Infinite-Canvas-V1"
+GITHUB_VERSION_URL = "https://raw.githubusercontent.com/Aliax-LI/Infinite-Canvas-V1/main/VERSION"
+GITHUB_TREE_URL = "https://api.github.com/repos/Aliax-LI/Infinite-Canvas-V1/git/trees/main?recursive=1"
+GITHUB_RAW_ROOT = "https://raw.githubusercontent.com/Aliax-LI/Infinite-Canvas-V1/main"
 GITHUB_UPDATE_NOTES_URL = GITHUB_RAW_ROOT + "/static/update-notes.json"
 MODELSCOPE_REPO_URL = "https://modelscope.ai/studios/daniel8152/Infinite-Canvas"
 MODELSCOPE_RAW_ROOT = "https://www.modelscope.ai/studios/daniel8152/Infinite-Canvas/raw/main"
@@ -2017,6 +2017,7 @@ def schedule_self_restart(delay_seconds: int = 3) -> bool:
     """派生脱离父进程的小脚本，等几秒后启动启动服务脚本，并干掉当前 PID。"""
     delay = max(1, int(delay_seconds or 3))
     pid = os.getpid()
+    electron_mode = os.getenv("INFINITE_CANVAS_ELECTRON", "").lower() in ("1", "true", "yes")
     try:
         if os.name == "nt":
             launcher = os.path.join(BASE_DIR, "启动服务.bat")
@@ -2024,32 +2025,41 @@ def schedule_self_restart(delay_seconds: int = 3) -> bool:
                 launcher = os.path.join(BASE_DIR, "start.bat")
             bat_path = os.path.join(BASE_DIR, "_self_restart.bat")
             log_path = os.path.join(BASE_DIR, "_self_restart.log")
-            script = (
-                "@echo off\r\n"
-                "chcp 65001 >nul\r\n"
-                "setlocal\r\n"
-                f"set \"APP_DIR={BASE_DIR}\"\r\n"
-                f"set \"LAUNCHER={launcher}\"\r\n"
-                f"set \"LOG_FILE={log_path}\"\r\n"
-                "echo [%date% %time%] restart scheduled >> \"%LOG_FILE%\"\r\n"
-                f"timeout /t {delay} /nobreak >nul\r\n"
-                "echo [%date% %time%] stopping old process >> \"%LOG_FILE%\"\r\n"
-                f"taskkill /F /PID {pid} >nul 2>&1\r\n"
-                "timeout /t 2 /nobreak >nul\r\n"
-                "cd /d \"%APP_DIR%\"\r\n"
-                "if exist \"%LAUNCHER%\" (\r\n"
-                "  echo [%date% %time%] starting launcher: %LAUNCHER% >> \"%LOG_FILE%\"\r\n"
-                "  start \"ComfyUI-API-Modelscope\" /D \"%APP_DIR%\" cmd /k call \"%LAUNCHER%\"\r\n"
-                ") else (\r\n"
-                "  echo [%date% %time%] launcher missing, fallback to python main.py >> \"%LOG_FILE%\"\r\n"
-                "  if exist \"%APP_DIR%\\python\\python.exe\" (\r\n"
-                "    start \"ComfyUI-API-Modelscope\" /D \"%APP_DIR%\" cmd /k \"\"%APP_DIR%\\python\\python.exe\" main.py\"\r\n"
-                "  ) else (\r\n"
-                "    start \"ComfyUI-API-Modelscope\" /D \"%APP_DIR%\" cmd /k python main.py\r\n"
-                "  )\r\n"
-                ")\r\n"
-                "del \"%~f0\"\r\n"
-            )
+            if electron_mode:
+                script = (
+                    "@echo off\r\n"
+                    "chcp 65001 >nul\r\n"
+                    f"timeout /t {delay} /nobreak >nul\r\n"
+                    f"taskkill /F /PID {pid} >nul 2>&1\r\n"
+                    "del \"%~f0\"\r\n"
+                )
+            else:
+                script = (
+                    "@echo off\r\n"
+                    "chcp 65001 >nul\r\n"
+                    "setlocal\r\n"
+                    f"set \"APP_DIR={BASE_DIR}\"\r\n"
+                    f"set \"LAUNCHER={launcher}\"\r\n"
+                    f"set \"LOG_FILE={log_path}\"\r\n"
+                    "echo [%date% %time%] restart scheduled >> \"%LOG_FILE%\"\r\n"
+                    f"timeout /t {delay} /nobreak >nul\r\n"
+                    "echo [%date% %time%] stopping old process >> \"%LOG_FILE%\"\r\n"
+                    f"taskkill /F /PID {pid} >nul 2>&1\r\n"
+                    "timeout /t 2 /nobreak >nul\r\n"
+                    "cd /d \"%APP_DIR%\"\r\n"
+                    "if exist \"%LAUNCHER%\" (\r\n"
+                    "  echo [%date% %time%] starting launcher: %LAUNCHER% >> \"%LOG_FILE%\"\r\n"
+                    "  start \"ComfyUI-API-Modelscope\" /D \"%APP_DIR%\" cmd /k call \"%LAUNCHER%\"\r\n"
+                    ") else (\r\n"
+                    "  echo [%date% %time%] launcher missing, fallback to python main.py >> \"%LOG_FILE%\"\r\n"
+                    "  if exist \"%APP_DIR%\\python\\python.exe\" (\r\n"
+                    "    start \"ComfyUI-API-Modelscope\" /D \"%APP_DIR%\" cmd /k \"\"%APP_DIR%\\python\\python.exe\" main.py\"\r\n"
+                    "  ) else (\r\n"
+                    "    start \"ComfyUI-API-Modelscope\" /D \"%APP_DIR%\" cmd /k python main.py\r\n"
+                    "  )\r\n"
+                    ")\r\n"
+                    "del \"%~f0\"\r\n"
+                )
             with open(bat_path, "w", encoding="utf-8") as f:
                 f.write(script)
             subprocess.Popen(
@@ -2062,16 +2072,24 @@ def schedule_self_restart(delay_seconds: int = 3) -> bool:
             if not os.path.exists(launcher):
                 launcher = os.path.join(BASE_DIR, "start.sh")
             sh_path = os.path.join(BASE_DIR, "_self_restart.sh")
-            script = (
-                "#!/bin/sh\n"
-                f"sleep {delay}\n"
-                f"kill -9 {pid} 2>/dev/null\n"
-                f"cd \"{BASE_DIR}\"\n"
-                f"if [ -x \"{launcher}\" ]; then nohup \"{launcher}\" >/dev/null 2>&1 &\n"
-                f"elif [ -f \"{launcher}\" ]; then nohup /bin/sh \"{launcher}\" >/dev/null 2>&1 &\n"
-                "fi\n"
-                "rm -- \"$0\"\n"
-            )
+            if electron_mode:
+                script = (
+                    "#!/bin/sh\n"
+                    f"sleep {delay}\n"
+                    f"kill -9 {pid} 2>/dev/null\n"
+                    "rm -- \"$0\"\n"
+                )
+            else:
+                script = (
+                    "#!/bin/sh\n"
+                    f"sleep {delay}\n"
+                    f"kill -9 {pid} 2>/dev/null\n"
+                    f"cd \"{BASE_DIR}\"\n"
+                    f"if [ -x \"{launcher}\" ]; then nohup \"{launcher}\" >/dev/null 2>&1 &\n"
+                    f"elif [ -f \"{launcher}\" ]; then nohup /bin/sh \"{launcher}\" >/dev/null 2>&1 &\n"
+                    "fi\n"
+                    "rm -- \"$0\"\n"
+                )
             with open(sh_path, "w", encoding="utf-8") as f:
                 f.write(script)
             os.chmod(sh_path, 0o755)
@@ -4192,11 +4210,76 @@ def is_gemini_cli_provider(provider):
 def codex_env_value(key):
     return os.getenv(key, "") or read_api_env_value(key)
 
+def cli_bin_directories():
+    home = os.path.expanduser("~")
+    dirs = [
+        os.path.join(home, ".local", "bin"),
+        os.path.join(home, ".codex", "bin"),
+        os.path.join(home, ".npm-global", "bin"),
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+    ]
+    nvm_base = os.path.join(home, ".nvm", "versions", "node")
+    if os.path.isdir(nvm_base):
+        for entry in sorted(os.listdir(nvm_base), reverse=True):
+            bin_dir = os.path.join(nvm_base, entry, "bin")
+            if os.path.isdir(bin_dir):
+                dirs.append(bin_dir)
+    appdata = os.getenv("APPDATA", "").strip()
+    if appdata:
+        dirs.append(os.path.join(appdata, "npm"))
+    localappdata = os.getenv("LOCALAPPDATA", "").strip()
+    if localappdata:
+        dirs.append(os.path.join(localappdata, "npm"))
+    seen = set()
+    result = []
+    for directory in dirs:
+        if not directory or directory in seen:
+            continue
+        seen.add(directory)
+        if os.path.isdir(directory):
+            result.append(directory)
+    return result
+
+NPM_REGISTRY_MIRROR = "https://registry.npmmirror.com"
+
+def cli_path_env():
+    env = os.environ.copy()
+    extra_dirs = cli_bin_directories()
+    current = [item for item in env.get("PATH", "").split(os.pathsep) if item]
+    merged = []
+    seen = set()
+    for entry in extra_dirs + current:
+        if not entry or entry in seen:
+            continue
+        seen.add(entry)
+        merged.append(entry)
+    env["PATH"] = os.pathsep.join(merged)
+    return env
+
+def discover_cli_executable(*names):
+    for name in names:
+        if not name:
+            continue
+        found = shutil.which(name)
+        if found:
+            return found
+    suffixes = ("", ".exe", ".cmd")
+    for bin_dir in cli_bin_directories():
+        for name in names:
+            if not name:
+                continue
+            for suffix in suffixes:
+                candidate = os.path.join(bin_dir, f"{name}{suffix}")
+                if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                    return candidate
+    return ""
+
 def codex_cli_executable():
     configured = str(codex_env_value("CODEX_BIN") or "").strip()
     if configured:
         return configured
-    return shutil.which("codex") or shutil.which("codex.exe") or shutil.which("codex.cmd") or ""
+    return discover_cli_executable("codex")
 
 def codex_timeout(default=CODEX_DEFAULT_TIMEOUT):
     try:
@@ -4306,12 +4389,51 @@ def gpt_image_2_skill_executable():
     configured = str(codex_env_value("GPT_IMAGE_2_SKILL_BIN") or "").strip()
     if configured:
         return configured
-    return (
-        shutil.which("gpt-image-2-skill")
-        or shutil.which("gpt-image-2-skill.exe")
-        or shutil.which("gpt-image-2-skill.cmd")
-        or ""
+    return discover_cli_executable("gpt-image-2-skill")
+
+def discover_npm_executable():
+    path_value = cli_path_env().get("PATH", "")
+    for name in ("npm", "npm.cmd"):
+        found = shutil.which(name, path=path_value)
+        if found:
+            return found
+    return ""
+
+async def install_gpt_image_2_skill_package():
+    npm = discover_npm_executable()
+    if not npm:
+        raise HTTPException(status_code=400, detail="未找到 npm。请先安装 Node.js，或确保 npm 在 PATH 中。")
+    env = cli_path_env()
+    env["NPM_CONFIG_REGISTRY"] = NPM_REGISTRY_MIRROR
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            npm,
+            "install",
+            "-g",
+            "gpt-image-2-skill",
+            cwd=BASE_DIR,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(status_code=504, detail="安装 GPT Image 2 helper 超时，请稍后重试。") from exc
+    out_text, err_text = codex_decode_output(stdout, stderr)
+    image2_exe = gpt_image_2_skill_executable()
+    ok = proc.returncode == 0 and bool(image2_exe)
+    message = "GPT Image 2 helper 安装成功。" if ok else (
+        err_text or out_text or f"安装失败（exit={proc.returncode}）"
     )
+    if proc.returncode == 0 and not image2_exe:
+        message = "npm 安装已完成，但未在 PATH 中找到 gpt-image-2-skill。请重启应用或新开终端后再检测。"
+    return {
+        "success": ok,
+        "installed": bool(image2_exe),
+        "path": image2_exe,
+        "message": message[:1200],
+        "raw": {"stdout": out_text, "stderr": err_text, "returncode": proc.returncode},
+    }
 
 def gpt_image_2_skill_auth_file():
     configured = str(codex_env_value("GPT_IMAGE_2_SKILL_AUTH_FILE") or codex_env_value("CODEX_AUTH_FILE") or "").strip()
@@ -4755,13 +4877,13 @@ def gemini_cli_executable():
         configured = str(gemini_cli_env_value(key) or "").strip().strip('"')
         if configured:
             return configured
-    for name in ("agy", "agy.exe"):
-        found = shutil.which(name)
+    for name in ("agy",):
+        found = discover_cli_executable(name)
         if found:
             return found
     for candidate in antigravity_cli_winget_candidates():
         return candidate
-    return shutil.which("gemini") or shutil.which("gemini.exe") or shutil.which("gemini.cmd") or ""
+    return discover_cli_executable("gemini")
 
 def is_antigravity_cli(exe):
     text = str(exe or "").lower()
@@ -5070,7 +5192,7 @@ def jimeng_cli_executable():
     ).strip()
     if configured:
         return configured
-    return shutil.which("dreamina") or shutil.which("dreamina.exe") or shutil.which("dreamina.cmd") or ""
+    return discover_cli_executable("dreamina")
 
 def decode_utf16_auto(raw: bytes) -> str:
     # WSL/Windows interop emits UTF-16 for null-heavy diagnostics, but the
@@ -11642,6 +11764,18 @@ async def codex_status():
             "message": f"Codex CLI 检测失败：{exc}",
         }
 
+@app.post("/api/codex/install-image-helper")
+async def codex_install_image_helper():
+    if gpt_image_2_skill_executable():
+        exe = gpt_image_2_skill_executable()
+        return {
+            "success": True,
+            "installed": True,
+            "path": exe,
+            "message": "GPT Image 2 helper 已安装，无需重复安装。",
+        }
+    return await install_gpt_image_2_skill_package()
+
 @app.post("/api/codex/help")
 async def codex_help(payload: CodexHelpRequest):
     exe = codex_cli_executable()
@@ -16910,5 +17044,10 @@ if __name__ == "__main__":
     # 关闭服务端协议级 WebSocket ping：部分客户端（如 PS UXP 面板）不会自动回 pong，
     # 默认 20s ping/20s 超时会把这些连接每隔一会儿就踢掉造成"频繁断连"。
     # 客户端有自己的应用层心跳 + 断线重连兜底，这里禁用协议 ping 更稳。
-    uvicorn.run(app, host="0.0.0.0", port=3000,
+    server_host = os.getenv("HOST", "0.0.0.0")
+    try:
+        server_port = int(os.getenv("PORT", "3000"))
+    except ValueError:
+        server_port = 3000
+    uvicorn.run(app, host=server_host, port=server_port,
                 ws_ping_interval=None, ws_ping_timeout=None)

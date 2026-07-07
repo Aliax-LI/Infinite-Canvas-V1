@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>无限画布 - 初始化</title>
+  <script>
+    (function () {
+      function applyDark() {
+        document.documentElement.classList.add('studio-theme-dark', 'theme-dark');
+      }
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var queryTheme = params.get('theme');
+        var stored = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme');
+        var theme = stored || queryTheme || 'light';
+        if (theme === 'dark') applyDark();
+      } catch (e) {}
+    })();
+  </script>
+  <style id="font-face-rules"></style>
+  <style>
+    :root {
+      --fluid-ease: cubic-bezier(0.3, 0, 0, 1);
+      --accent: #000000;
+      --bg: #f7f7f8;
+      --sidebar-bg: #f7f7f8;
+      --stage-bg: #f7f7f8;
+      --card: #f7f7f8;
+      --border: #f2f2f2;
+      --stage-border: #f0f0f0;
+      --line: #e5e7eb;
+      --text: #121212;
+      --muted: #999999;
+      --faint: #b3b3b3;
+      --soft: #fafafa;
+      --soft-2: #f8fafc;
+      --strong: #121212;
+      --shadow: rgba(0, 0, 0, 0.06);
+      --scrollbar: #d8d8d8;
+      --scrollbar-hover: #c0c0c0;
+      --status-pending: #94a3b8;
+      --status-ok: #22c55e;
+      --status-fail: #ef4444;
+      --status-installing: #3b82f6;
+      --hint-bg: rgba(0, 0, 0, 0.03);
+      --hint-border: #f0f0f0;
+      --badge-recommended: rgba(34, 197, 94, 0.12);
+      --badge-recommended-text: #15803d;
+      --badge-optional: rgba(148, 163, 184, 0.16);
+      --badge-optional-text: #64748b;
+    }
+
+    html.studio-theme-dark,
+    html.theme-dark {
+      color-scheme: dark;
+      --accent: #e8e8ea;
+      --bg: #0f141d;
+      --sidebar-bg: #0f141d;
+      --stage-bg: #0f141d;
+      --card: #0f141d;
+      --border: #242d3b;
+      --stage-border: #2a3444;
+      --line: #334155;
+      --text: #e5e9f0;
+      --muted: #8f9aab;
+      --faint: #64748b;
+      --soft: #111722;
+      --soft-2: #141b27;
+      --strong: #e5e9f0;
+      --shadow: rgba(0, 0, 0, 0.32);
+      --scrollbar: #334155;
+      --scrollbar-hover: #475569;
+      --status-pending: #64748b;
+      --status-ok: #4ade80;
+      --status-fail: #f87171;
+      --status-installing: #60a5fa;
+      --hint-bg: rgba(255, 255, 255, 0.04);
+      --hint-border: #2a3444;
+      --badge-recommended: rgba(74, 222, 128, 0.12);
+      --badge-recommended-text: #4ade80;
+      --badge-optional: rgba(100, 116, 139, 0.2);
+      --badge-optional-text: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    .log-panel, .cli-log-panel {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar) transparent;
+    }
+    .log-panel::-webkit-scrollbar, .cli-log-panel::-webkit-scrollbar { width: 8px; background: transparent; }
+    .log-panel::-webkit-scrollbar-thumb, .cli-log-panel::-webkit-scrollbar-thumb {
+      background-color: var(--scrollbar);
+      border: 2px solid transparent;
+      background-clip: padding-box;
+      border-radius: 0;
+    }
+
+    body {
+      font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      font-style: normal;
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    em, i, cite, var { font-style: normal; }
+
+    .app-shell { display: flex; width: 100%; height: 100vh; background: var(--bg); }
+
+    .sidebar {
+      width: 80px; min-width: 80px; height: 100%;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 28px 0 20px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+    }
+
+    .logo-ring {
+      width: 36px; height: 36px; border: 2px solid var(--text); border-radius: 0;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      background: transparent; flex: 0 0 auto; margin-bottom: 18px;
+    }
+    .logo-ring img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #logo-dot { width: 6px; height: 6px; border-radius: 0; background: var(--text); flex: 0 0 auto; }
+    .logo-ring.has-image #logo-dot { display: none; }
+
+    .step-rail {
+      display: flex; flex-direction: column; gap: 10px; margin-top: 8px; flex: 1;
+    }
+    .step-dot {
+      width: 8px; height: 8px; border-radius: 0; background: var(--line);
+      transition: background 0.25s, transform 0.25s;
+    }
+    .step-dot.active { background: var(--text); transform: scale(1.15); }
+    .step-dot.done { background: var(--status-ok); }
+
+    .sidebar-label {
+      writing-mode: vertical-rl; transform: rotate(180deg);
+      font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--muted); flex-shrink: 0; padding-bottom: 4px;
+    }
+
+    .stage {
+      flex: 1; min-width: 0; display: flex; flex-direction: column;
+      background: var(--bg);
+      border-left: 1px solid var(--stage-border);
+      box-shadow: none;
+    }
+
+    .stage-inner {
+      flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px;
+      padding: 24px 24px 18px; overflow: hidden;
+    }
+
+    .stage-head { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    .setup-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .setup-title { font-size: 22px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+    .setup-copy { color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 58ch; }
+
+    .phase { display: none; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+    .phase.active { display: flex; }
+
+    .status-row {
+      display: grid; grid-template-columns: 10px minmax(0, 1fr) auto;
+      align-items: center; gap: 10px; min-height: 48px;
+      padding: 12px 14px; border: 1px solid var(--border); border-radius: 0;
+      background: var(--card); box-shadow: 0 10px 28px var(--shadow);
+    }
+    .status-indicator { width: 9px; height: 9px; border-radius: 0; background: var(--status-pending); flex-shrink: 0; }
+    .status-row.pending .status-indicator { animation: pulse 1.2s ease-in-out infinite; }
+    .status-row.ok .status-indicator { background: var(--status-ok); animation: none; }
+    .status-row.fail .status-indicator { background: var(--status-fail); animation: none; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.88); } }
+    .status-label { font-size: 10px; font-weight: 700; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+    .status-text { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.35; word-break: break-word; }
+    .status-spinner { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--text); border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0; justify-self: end; }
+    .status-spinner.hidden { display: none; }
+    .status-success { display: none; width: 16px; height: 16px; flex-shrink: 0; justify-self: end; color: var(--status-ok); }
+    .status-row.ok .status-success { display: block; }
+    .status-row.ok .status-spinner { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .log-section { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+    .log-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+    .log-panel {
+      flex: 1; min-height: 100px; overflow-y: auto; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 0; background: var(--soft);
+      color: var(--muted);
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+    }
+    .log-panel:empty::before { content: "等待安装输出…"; color: var(--faint); }
+
+    .cli-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      flex: 1; min-height: 0; overflow-y: auto; align-content: start;
+      padding-right: 2px;
+    }
+
+    .cli-card {
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 14px; border: 1px solid var(--border); border-radius: 0;
+      background: var(--card); box-shadow: 0 8px 24px var(--shadow);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .cli-card.installed { border-color: rgba(34, 197, 94, 0.35); }
+    .cli-card.installing { border-color: rgba(59, 130, 246, 0.35); }
+    .cli-card.failed { border-color: rgba(239, 68, 68, 0.35); }
+
+    .cli-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .cli-card-title { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.3; }
+    .cli-card-tag {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 3px 7px; border-radius: 0; flex-shrink: 0;
+    }
+    .cli-card-tag.recommended { background: var(--badge-recommended); color: var(--badge-recommended-text); }
+    .cli-card-tag.optional { background: var(--badge-optional); color: var(--badge-optional-text); }
+
+    .cli-card-desc { font-size: 11px; line-height: 1.55; color: var(--muted); flex: 1; }
+
+    .cli-card-foot {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px;
+    }
+
+    .cli-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--faint);
+    }
+    .cli-badge-dot { width: 6px; height: 6px; border-radius: 0; background: var(--status-pending); }
+    .cli-card.installed .cli-badge-dot { background: var(--status-ok); }
+    .cli-card.installing .cli-badge-dot { background: var(--status-installing); animation: pulse 1s infinite; }
+    .cli-card.failed .cli-badge-dot { background: var(--status-fail); }
+
+    .cli-btn {
+      appearance: none; border: 1px solid var(--border); background: var(--soft-2);
+      color: var(--text); font: inherit; font-size: 11px; font-weight: 700;
+      padding: 6px 12px; border-radius: 0; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+    }
+    .cli-btn:hover:not(:disabled) { background: var(--card); border-color: var(--line); }
+    .cli-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .cli-btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .cli-btn.primary:hover:not(:disabled) { opacity: 0.88; }
+
+    .cli-log-section { display: none; flex-direction: column; gap: 6px; min-height: 72px; max-height: 96px; flex-shrink: 0; }
+    .cli-log-section.visible { display: flex; }
+    .cli-log-panel {
+      flex: 1; overflow-y: auto; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 0; background: var(--soft);
+      color: var(--muted);
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+    }
+
+    .setup-actions {
+      display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+      flex-shrink: 0; padding-top: 2px;
+    }
+
+    .setup-hint {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 10px 12px; border-radius: 0;
+      border: 1px solid var(--hint-border); background: var(--hint-bg);
+      color: var(--muted); font-size: 12px; line-height: 1.55; flex-shrink: 0;
+    }
+    .setup-hint-icon { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="品牌导航">
+      <div class="logo-ring" id="logo-ring" aria-hidden="true">
+        <img id="logo" class="setup-logo" alt="" hidden>
+        <div id="logo-dot"></div>
+      </div>
+      <div class="step-rail" aria-hidden="true">
+        <span class="step-dot active" id="step-dot-1" title="Python 环境"></span>
+        <span class="step-dot" id="step-dot-2" title="CLI 工具"></span>
+        <span class="step-dot" id="step-dot-3" title="完成"></span>
+      </div>
+      <div class="sidebar-label">Setup</div>
+    </aside>
+
+    <main class="stage">
+      <div class="stage-inner">
+        <header class="stage-head">
+          <p class="setup-kicker" id="setup-kicker">首次启动 · 步骤 1/3</p>
+          <h1 class="setup-title" id="setup-title">正在初始化 Python 环境</h1>
+          <p class="setup-copy" id="setup-copy">
+            首次启动将自动检测或安装 Python，并从国内镜像安装依赖，全程无需手动操作。
+          </p>
+        </header>
+
+        <section class="phase active" id="phase-python" aria-label="Python 环境">
+          <div class="status-row pending" id="status-row">
+            <span class="status-indicator" id="status-indicator"></span>
+            <div>
+              <div class="status-label">当前状态</div>
+              <div class="status-text" id="status-text">准备中…</div>
+            </div>
+            <div class="status-spinner" id="spinner" aria-hidden="true"></div>
+            <svg class="status-success" id="status-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5"></path>
+            </svg>
+          </div>
+          <div class="log-section">
+            <div class="log-label">安装日志</div>
+            <div class="log-panel" id="log" role="log" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-cli" aria-label="CLI 工具">
+          <div class="cli-grid" id="cli-grid"></div>
+          <div class="cli-log-section" id="cli-log-section">
+            <div class="log-label">CLI 安装日志</div>
+            <div class="cli-log-panel" id="cli-log" role="log" aria-live="polite"></div>
+          </div>
+          <div class="setup-actions">
+            <button type="button" class="cli-btn" id="btn-skip-cli">跳过，稍后配置</button>
+            <button type="button" class="cli-btn primary" id="btn-finish">进入无限画布</button>
+          </div>
+        </section>
+
+        <p class="setup-hint" id="setup-hint">
+          <svg class="setup-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 16v-4"></path>
+            <path d="M12 8h.01"></path>
+          </svg>
+          <span id="setup-hint-text">系统 Python 将自动使用独立虚拟环境；CLI 工具为可选项，推荐安装 Codex 与 GPT Image 2 Helper。</span>
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const statusRow = document.getElementById('status-row');
+    const statusText = document.getElementById('status-text');
+    const logEl = document.getElementById('log');
+    const cliLogEl = document.getElementById('cli-log');
+    const cliLogSection = document.getElementById('cli-log-section');
+    const spinner = document.getElementById('spinner');
+    const logoEl = document.getElementById('logo');
+    const logoRing = document.getElementById('logo-ring');
+    const logoDot = document.getElementById('logo-dot');
+    const fontFaceRules = document.getElementById('font-face-rules');
+    const phasePython = document.getElementById('phase-python');
+    const phaseCli = document.getElementById('phase-cli');
+    const cliGrid = document.getElementById('cli-grid');
+    const setupKicker = document.getElementById('setup-kicker');
+    const setupTitle = document.getElementById('setup-title');
+    const setupCopy = document.getElementById('setup-copy');
+    const setupHintText = document.getElementById('setup-hint-text');
+    const btnSkipCli = document.getElementById('btn-skip-cli');
+    const btnFinish = document.getElementById('btn-finish');
+
+    let currentPhase = 'python';
+    let installingCount = 0;
+    const toolCards = new Map();
+
+    const ACTIVE_STATUSES = new Set(['detecting', 'python', 'checking', 'installing', 'verifying', 'launching']);
+
+    const STATUS_LABELS = {
+      missing: '未安装',
+      installed: '已安装',
+      installing: '安装中',
+      failed: '安装失败'
+    };
+
+    function setStatusState(state) {
+      statusRow.classList.remove('pending', 'ok', 'fail');
+      statusRow.classList.add(state);
+    }
+
+    function setSpinnerActive(active) {
+      spinner.classList.toggle('hidden', !active);
+    }
+
+    function appendLog(text, target = logEl) {
+      if (!text) return;
+      target.textContent += text;
+      target.scrollTop = target.scrollHeight;
+    }
+
+    function setStep(step) {
+      for (let i = 1; i <= 3; i += 1) {
+        const dot = document.getElementById(`step-dot-${i}`);
+        dot.classList.remove('active', 'done');
+        if (i < step) dot.classList.add('done');
+        if (i === step) dot.classList.add('active');
+      }
+    }
+
+    function showPhase(phase) {
+      currentPhase = phase;
+      phasePython.classList.toggle('active', phase === 'python');
+      phaseCli.classList.toggle('active', phase === 'cli');
+      if (phase === 'python') {
+        setStep(1);
+        setupKicker.textContent = '首次启动 · 步骤 1/3';
+        setupTitle.textContent = '正在初始化 Python 环境';
+        setupCopy.textContent = '首次启动将自动检测或安装 Python，并从国内镜像安装依赖，全程无需手动操作。';
+      } else if (phase === 'cli') {
+        setStep(2);
+        setupKicker.textContent = '首次启动 · 步骤 2/3';
+        setupTitle.textContent = '安装 CLI 工具（推荐）';
+        setupCopy.textContent = '以下工具可在应用内直接使用 Codex 聊天、GPT Image 2 生图等功能。已安装的工具会自动跳过。';
+        setupHintText.textContent = 'CLI 工具为可选项；Codex 与 GPT Image 2 Helper 强烈推荐。npm 安装使用国内 npmmirror 镜像。';
+      }
+    }
+
+    function renderCliCard(tool) {
+      const card = document.createElement('article');
+      card.className = 'cli-card';
+      card.dataset.toolId = tool.id;
+      card.innerHTML = `
+        <div class="cli-card-head">
+          <div class="cli-card-title">${tool.name}</div>
+          <span class="cli-card-tag ${tool.optional ? 'optional' : 'recommended'}">${tool.tag}</span>
+        </div>
+        <p class="cli-card-desc">${tool.description}</p>
+        <div class="cli-card-foot">
+          <span class="cli-badge"><span class="cli-badge-dot"></span><span class="cli-badge-text">${STATUS_LABELS[tool.status] || tool.detail || '未安装'}</span></span>
+          <button type="button" class="cli-btn cli-install-btn">安装</button>
+        </div>
+      `;
+      const btn = card.querySelector('.cli-install-btn');
+      btn.addEventListener('click', () => installTool(tool.id));
+      cliGrid.appendChild(card);
+      toolCards.set(tool.id, { card, btn, badge: card.querySelector('.cli-badge-text') });
+      updateCardState(tool.id, tool.status, tool.detail);
+      return card;
+    }
+
+    function updateCardState(toolId, status, detail) {
+      const entry = toolCards.get(toolId);
+      if (!entry) return;
+      const { card, btn, badge } = entry;
+      card.classList.remove('installed', 'installing', 'failed');
+      if (status === 'installed') card.classList.add('installed');
+      if (status === 'installing') card.classList.add('installing');
+      if (status === 'failed') card.classList.add('failed');
+      badge.textContent = detail || STATUS_LABELS[status] || status;
+      btn.disabled = status === 'installing' || status === 'installed';
+      btn.textContent = status === 'installed' ? '已安装' : status === 'installing' ? '安装中…' : status === 'failed' ? '重试' : '安装';
+    }
+
+    function refreshActionButtons() {
+      const busy = installingCount > 0;
+      btnSkipCli.disabled = busy;
+      btnFinish.disabled = busy;
+    }
+
+    async function loadCliTools() {
+      cliGrid.innerHTML = '';
+      toolCards.clear();
+      try {
+        const tools = await window.setupBridge.getCliTools();
+        tools.forEach(renderCliCard);
+      } catch (err) {
+        appendLog(`CLI 检测失败：${err?.message || err}\n`, cliLogEl);
+        cliLogSection.classList.add('visible');
+      }
+    }
+
+    async function installTool(toolId) {
+      if (installingCount > 0) return;
+      installingCount += 1;
+      refreshActionButtons();
+      updateCardState(toolId, 'installing', '安装中');
+      cliLogSection.classList.add('visible');
+      cliLogEl.textContent = '';
+      appendLog(`开始安装 ${toolId}…\n`, cliLogEl);
+      try {
+        const result = await window.setupBridge.installCli(toolId);
+        updateCardState(toolId, result.status, result.detail);
+        if (result.status === 'installed') {
+          appendLog(`${toolId} 安装成功\n`, cliLogEl);
+        } else {
+          appendLog(`${toolId} 安装未完全成功\n`, cliLogEl);
+        }
+      } catch (err) {
+        updateCardState(toolId, 'failed', err?.message || '安装失败');
+        appendLog(`${toolId} 安装失败：${err?.message || err}\n`, cliLogEl);
+      } finally {
+        installingCount -= 1;
+        refreshActionButtons();
+      }
+    }
+
+    function applyTheme(theme) {
+      if (theme !== 'dark') return;
+      document.documentElement.classList.add('studio-theme-dark', 'theme-dark');
+    }
+
+    function injectFonts(urls) {
+      if (!urls) return;
+      const rules = [];
+      if (urls.spaceGrotesk500) rules.push(`@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500;font-display:swap;src:url('${urls.spaceGrotesk500}') format('truetype');}`);
+      if (urls.spaceGrotesk700) rules.push(`@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:700;font-display:swap;src:url('${urls.spaceGrotesk700}') format('truetype');}`);
+      if (urls.jetbrainsMono) rules.push(`@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400;font-display:swap;src:url('${urls.jetbrainsMono}') format('truetype');}`);
+      if (rules.length) fontFaceRules.textContent = rules.join('\n');
+    }
+
+    async function initBranding() {
+      if (!window.setupBridge) return;
+      try {
+        const themeInfo = await window.setupBridge.getTheme?.();
+        if (themeInfo?.theme) applyTheme(themeInfo.theme);
+      } catch (_) {}
+      try {
+        const fontUrls = await window.setupBridge.getFontUrls?.();
+        injectFonts(fontUrls);
+      } catch (_) {}
+      try {
+        const logoUrl = await window.setupBridge.getLogoUrl?.();
+        if (!logoUrl) return;
+        logoEl.src = logoUrl;
+        logoEl.hidden = false;
+        logoRing.classList.add('has-image');
+        logoEl.onerror = () => {
+          logoEl.hidden = true;
+          logoRing.classList.remove('has-image');
+          logoDot.hidden = false;
+        };
+      } catch (_) {}
+    }
+
+    async function enterCliPhase() {
+      showPhase('cli');
+      await loadCliTools();
+    }
+
+    btnSkipCli.addEventListener('click', async () => {
+      btnSkipCli.disabled = true;
+      btnFinish.disabled = true;
+      try {
+        await window.setupBridge.skipCli();
+      } catch (_) {}
+    });
+
+    btnFinish.addEventListener('click', async () => {
+      btnSkipCli.disabled = true;
+      btnFinish.disabled = true;
+      btnFinish.textContent = '正在启动…';
+      try {
+        await window.setupBridge.finishSetup();
+      } catch (_) {
+        btnFinish.disabled = false;
+        btnFinish.textContent = '进入无限画布';
+      }
+    });
+
+    window.setupBridge?.onStatus(({ status, detail }) => {
+      if (currentPhase !== 'python') return;
+      statusText.textContent = detail || status;
+      if (status === 'ready') {
+        setSpinnerActive(false);
+        setStatusState('ok');
+        return;
+      }
+      if (status === 'error') {
+        setSpinnerActive(false);
+        setStatusState('fail');
+        return;
+      }
+      if (status === 'launching' && statusRow.classList.contains('ok')) {
+        setSpinnerActive(false);
+        return;
+      }
+      setSpinnerActive(ACTIVE_STATUSES.has(status));
+      setStatusState('pending');
+    });
+
+    window.setupBridge?.onProgress(text => {
+      if (currentPhase === 'python') appendLog(text);
+    });
+
+    window.setupBridge?.onPhase(({ phase }) => {
+      if (phase === 'cli') enterCliPhase();
+      if (phase === 'launching') {
+        setStep(3);
+        setupKicker.textContent = '首次启动 · 步骤 3/3';
+        setupTitle.textContent = '正在启动无限画布';
+        setupCopy.textContent = '后端服务正在启动，请稍候…';
+        phaseCli.classList.remove('active');
+        phasePython.classList.add('active');
+        statusText.textContent = '正在启动后端…';
+        setSpinnerActive(true);
+        setStatusState('pending');
+      }
+    });
+
+    window.setupBridge?.onCliStatus(payload => {
+      if (!payload?.id) return;
+      updateCardState(payload.id, payload.status, payload.detail);
+    });
+
+    window.setupBridge?.onCliLog(text => appendLog(text, cliLogEl));
+
+    initBranding();
+  </script>
+</body>
+</html>

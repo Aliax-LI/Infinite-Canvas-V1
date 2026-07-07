@@ -3459,8 +3459,16 @@ body.show-provider-onboarding .content-actions .danger-btn {
 }
 
 .recommend-inline-card {
-    min-height:360px;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
     justify-content:flex-start;
+    min-height:0;
+    height:auto;
+    overflow:visible;
+    flex-shrink:0;
+    gap:16px;
+    padding:20px;
 }
 
 .recommend-content[hidden] {
@@ -3476,6 +3484,10 @@ body.show-provider-onboarding .content-actions .danger-btn {
     display:grid;
     grid-template-columns:1fr;
     gap:16px;
+    min-height:0;
+    height:auto;
+    overflow:visible;
+    flex:0 0 auto;
 }
 
 .recommend-inline-card .recommend-card {
@@ -4351,14 +4363,8 @@ body.show-recommend-mode .provider-card.active {
 }
 
 .recommend-inline-body {
-    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
-    gap:14px !important;
-}
-
-.recommend-platform-card {
     grid-template-columns:1fr !important;
-    gap:12px !important;
-    padding:14px !important;
+    gap:14px !important;
 }
 
 .recommend-platform-setup {
@@ -4482,13 +4488,7 @@ body.show-recommend-mode .provider-card.active {
     box-shadow:none !important;
 }
 
-.recommend-inline-card {
-    gap:16px !important;
-    padding:20px !important;
-}
-
 .recommend-inline-body {
-    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
     gap:16px !important;
 }
 
@@ -4710,8 +4710,14 @@ html:not(.studio-theme-dark) body:not(.theme-dark) .recommend-advantages span::b
 }
 
 .recommend-inline-body {
+    display:grid !important;
     grid-template-columns:1fr !important;
     gap:12px !important;
+    padding:0 !important;
+    min-height:0 !important;
+    height:auto !important;
+    overflow:visible !important;
+    flex:0 0 auto !important;
 }
 
 .recommend-platform-card {
@@ -5630,15 +5636,7 @@ html.studio-theme-dark body .recommend-tag.recommend-free-tag svg {
     }
 
     .recommend-inline-body {
-        display:flex !important;
-        flex-direction:column !important;
-        align-items:stretch !important;
-    }
-
-    .recommend-platform-card {
-        display:flex !important;
-        flex-direction:column !important;
-        align-items:stretch !important;
+        grid-template-columns:1fr !important;
     }
 
     .recommend-platform-head,
@@ -5758,142 +5756,26 @@ html.studio-theme-dark body .recommend-tag.recommend-free-tag svg {
     min-width:92px !important;
 }
 
-/* 推荐 API 快捷设置：操作按钮换行到说明文字下方，避免挤出卡片底部框架 */
-.recommend-inline-card .recommend-platform-card {
-    display:flex !important;
-    flex-direction:column !important;
-    align-items:stretch !important;
-    grid-template-columns:none !important;
-    min-width:0 !important;
-    overflow:hidden !important;
+/* 推荐 API inline：信息区排版（布局见文件末尾 v4 权威块） */
+.recommend-inline-body .recommend-group {
+    gap:16px !important;
 }
 
 .recommend-inline-card .recommend-platform-info {
-    width:100% !important;
-    min-height:auto !important;
+    display:flex !important;
+    flex-direction:column !important;
+    gap:8px !important;
     min-width:0 !important;
+    min-height:0 !important;
     justify-content:flex-start !important;
 }
 
-.recommend-inline-card .recommend-platform-setup {
-    width:100% !important;
-    min-width:0 !important;
-    overflow:hidden !important;
+.recommend-inline-card .recommend-platform-summary {
+    margin:0 !important;
 }
 
-.recommend-inline-card .recommend-setup-flow {
-    display:grid !important;
-    grid-template-columns:minmax(145px, .36fr) 24px minmax(220px, .64fr) !important;
-    align-items:stretch !important;
-    gap:10px !important;
-    min-width:0 !important;
-    max-width:100% !important;
-}
-
-.recommend-inline-card .recommend-guide-arrow {
-    display:flex !important;
-    align-self:center !important;
-    justify-self:center !important;
-    width:24px !important;
-    min-width:24px !important;
-    transform:none !important;
-}
-
-.recommend-inline-card .recommend-guide-source,
-.recommend-inline-card .recommend-guide-save {
-    width:100% !important;
-    min-width:0 !important;
-    max-width:100% !important;
-    min-height:0 !important;
-    box-sizing:border-box !important;
-}
-
-.recommend-inline-card .recommend-guide-source {
-    display:flex !important;
-    flex-direction:column !important;
-    align-items:stretch !important;
-    gap:7px !important;
-    padding:9px !important;
-}
-
-.recommend-inline-card .recommend-guide-key-stack,
-.recommend-inline-card .recommend-single-action {
-    display:flex !important;
-    flex-direction:column !important;
-    align-items:stretch !important;
-    gap:7px !important;
-    width:100% !important;
-    min-width:0 !important;
-}
-
-.recommend-inline-card .recommend-guide-save {
-    display:grid !important;
-    grid-template-columns:minmax(0, 1fr) 52px !important;
-    align-content:center !important;
-    align-items:end !important;
-    gap:6px !important;
-    padding:9px !important;
-}
-
-.recommend-inline-card .recommend-guide-save .onboarding-rh-row-field,
-.recommend-inline-card .recommend-guide-save .onboarding-key-field {
-    width:100% !important;
-    min-width:0 !important;
-}
-
-.recommend-inline-card .recommend-guide-save .onboarding-key-field input {
-    width:100% !important;
-    min-width:0 !important;
-    box-sizing:border-box !important;
-}
-
-.recommend-inline-card .recommend-key-hint {
-    margin-top:4px;
-    color:var(--muted);
-    font-size:9.5px;
-    line-height:1.35;
-    font-style:normal;
-    font-weight:750;
-}
-
-.recommend-inline-card .recommend-guide-key-btn,
-.recommend-inline-card .recommend-guide-save-btn {
-    width:100% !important;
-    min-width:0 !important;
-    max-width:100% !important;
-    height:34px !important;
-    min-height:34px !important;
-    white-space:normal !important;
-}
-
-.recommend-inline-card .recommend-guide-save-btn {
-    width:52px !important;
-    min-width:52px !important;
-    padding-left:0 !important;
-    padding-right:0 !important;
-}
-
-@media (max-width:760px) {
-    .recommend-inline-card .recommend-setup-flow {
-        display:flex !important;
-        flex-direction:column !important;
-        align-items:stretch !important;
-        grid-template-columns:none !important;
-    }
-
-    .recommend-inline-card .recommend-guide-arrow {
-        display:none !important;
-    }
-
-    .recommend-inline-card .recommend-guide-save {
-        display:flex !important;
-        flex-direction:column !important;
-        align-items:stretch !important;
-    }
-
-    .recommend-inline-card .recommend-guide-save-btn {
-        width:100% !important;
-    }
+.recommend-inline-card .recommend-tags {
+    margin-top:auto !important;
 }
 
 @media (max-width:780px) {
@@ -5929,37 +5811,1258 @@ html.studio-theme-dark body .recommend-tag.recommend-free-tag svg {
     }
 }
 
-/* ===== 推荐卡片快捷设置：文本下方保持左右引导（获取 Key -> 填写 Key） ===== */
-.recommend-inline-body .recommend-setup-flow {
-    display:grid !important;
-    grid-template-columns:minmax(145px, .36fr) 24px minmax(220px, .64fr) !important;
-    align-items:stretch !important;
-    gap:10px !important;
+/* 设置页 iframe 嵌入：隐藏页头，侧栏/内容区拉满高度（不改变原有块级排版） */
+html.studio-settings-embed {
+    height: 100%;
+    overflow: hidden;
 }
+
+html.studio-settings-embed,
+html.studio-settings-embed body {
+    min-height: 100%;
+    height: 100%;
+}
+
+html.studio-settings-embed body {
+    overflow: hidden;
+    background: var(--bg) !important;
+}
+
+html.studio-settings-embed .page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+    padding: 0;
+    background: var(--bg);
+}
+
+html.studio-settings-embed .wrap {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+html.studio-settings-embed .page-head {
+    display: none;
+}
+
+html.studio-settings-embed .layout {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    min-height: 0;
+}
+
+html.studio-settings-embed .sidebar {
+    flex: 0 0 260px;
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    position: relative;
+    top: auto;
+    min-height: 100%;
+    max-height: none;
+    padding: 16px 12px 20px 20px;
+    border: none;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--bg);
+    box-shadow: none;
+    overflow: hidden;
+}
+
+html.studio-settings-embed .provider-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+html.studio-settings-embed .cli-quick-group {
+    flex: 0 0 auto;
+    margin-top: auto;
+}
+
+html.studio-settings-embed .content,
+html.studio-settings-embed .recommend-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 16px 24px 24px;
+}
+
+@media (max-width: 900px) {
+    html.studio-settings-embed body {
+        overflow-y: auto;
+    }
+
+    html.studio-settings-embed .layout {
+        flex-direction: column;
+    }
+
+    html.studio-settings-embed .sidebar {
+        flex: 0 0 auto;
+        min-height: 0;
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 16px 14px;
+    }
+
+    html.studio-settings-embed .content,
+    html.studio-settings-embed .recommend-content {
+        padding: 14px 16px 20px;
+    }
+}
+
+/* ── 平台列表统一行组件（预设 / 自定义 / CLI 共用） ── */
+.provider-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    padding: 0 0 10px !important;
+    margin-bottom: 6px !important;
+    border-bottom: 1px solid var(--line) !important;
+}
+
+.provider-card {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: 12px 32px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 0 10px !important;
+    width: 100% !important;
+    min-height: 46px !important;
+    padding: 6px 10px 6px 6px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--muted) !important;
+    text-align: left !important;
+    font-family: var(--font-sans) !important;
+    font-style: normal !important;
+    box-shadow: none !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
+}
+
+.provider-card::before {
+    content: "" !important;
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 2px !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+}
+
+.provider-card + .provider-card {
+    border-top: 1px solid var(--line) !important;
+}
+
+.provider-card:hover {
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.provider-card.active {
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.provider-card.active::before {
+    background: var(--text) !important;
+}
+
+.provider-card.is-disabled {
+    opacity: 0.48 !important;
+}
+
+.provider-drag-gutter {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 12px !important;
+    min-width: 12px !important;
+    height: 100% !important;
+    flex: 0 0 auto !important;
+}
+
+.provider-card:not(.provider-card-sortable) .provider-drag-gutter {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+.provider-drag-handle {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: var(--faint) !important;
+    opacity: 0 !important;
+    transition: opacity 0.15s ease, color 0.15s ease !important;
+}
+
+.provider-card-sortable {
+    cursor: grab !important;
+}
+
+.provider-card-sortable:active {
+    cursor: grabbing !important;
+}
+
+.provider-card-sortable:hover .provider-drag-handle,
+.provider-card-sortable.is-dragging .provider-drag-handle {
+    opacity: 1 !important;
+    color: var(--muted) !important;
+}
+
+.provider-card-sortable.is-dragging {
+    opacity: 0.55 !important;
+}
+
+.provider-card-drop-target {
+    background: var(--soft) !important;
+    box-shadow: inset 0 0 0 1px var(--line-strong) !important;
+}
+
+.provider-icon {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+    background: var(--soft) !important;
+    color: var(--muted) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+}
+
+.provider-card.active .provider-icon {
+    background: var(--panel) !important;
+    color: var(--text) !important;
+    border-color: var(--line-strong) !important;
+}
+
+.provider-icon--brand {
+    padding: 4px !important;
+    background: var(--panel) !important;
+}
+
+.provider-brand-img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    margin: 0 auto !important;
+    object-fit: contain !important;
+}
+
+.provider-icon--brand .runninghub-icon {
+    max-width: 22px !important;
+    max-height: 18px !important;
+}
+
+.provider-icon--brand .volcengine-icon {
+    max-width: 24px !important;
+    max-height: 20px !important;
+}
+
+.provider-icon--brand .ms-icon-dark {
+    display: none !important;
+}
+
+body.studio-theme-dark .provider-icon--brand .ms-icon-light,
+html.studio-theme-dark body .provider-icon--brand .ms-icon-light {
+    display: none !important;
+}
+
+body.studio-theme-dark .provider-icon--brand .ms-icon-dark,
+html.studio-theme-dark body .provider-icon--brand .ms-icon-dark {
+    display: block !important;
+}
+
+.provider-info {
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 1px !important;
+}
+
+.provider-name {
+    min-width: 0 !important;
+    color: var(--text) !important;
+    font-size: 12.5px !important;
+    line-height: 1.25 !important;
+    font-weight: 600 !important;
+    font-style: normal !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+.provider-meta {
+    min-width: 0 !important;
+    margin: 0 !important;
+    color: var(--faint) !important;
+    font-size: 10px !important;
+    line-height: 1.3 !important;
+    font-weight: 500 !important;
+    font-style: normal !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+.provider-card.active .provider-name {
+    color: var(--text) !important;
+    font-weight: 600 !important;
+}
+
+.provider-card.active .provider-meta {
+    color: var(--muted) !important;
+}
+
+.provider-badge {
+    flex: 0 0 auto !important;
+    min-width: 30px !important;
+    max-width: 56px !important;
+    height: 18px !important;
+    padding: 0 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: var(--soft) !important;
+    color: var(--muted) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    font-weight: 700 !important;
+    font-style: normal !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+.provider-card.active .provider-badge {
+    background: var(--panel) !important;
+    color: var(--text) !important;
+    border-color: var(--line-strong) !important;
+}
+
+/* 废弃旧结构，避免残留样式干扰 */
+.provider-card.provider-card-banner,
+.provider-banner-inner,
+.provider-logo-wrap,
+.provider-mark,
+.provider-side-meta,
+.provider-protocol-pill,
+.provider-status-dot {
+    all: unset !important;
+}
+
+/* 侧栏操作按钮与列表行对齐 */
+.sidebar-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    margin-top: 2px !important;
+}
+
+.sidebar-row-btn {
+    display: grid !important;
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-height: 46px !important;
+    padding: 6px 10px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--muted) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    font-style: normal !important;
+    text-align: left !important;
+    box-shadow: none !important;
+    transform: none !important;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+}
+
+.sidebar-row-btn + .sidebar-row-btn {
+    border-top: 1px solid var(--line) !important;
+}
+
+.sidebar-row-icon {
+    width: 32px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+    background: var(--soft) !important;
+    color: currentColor !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+}
+
+.sidebar-row-label {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+.add-btn.sidebar-row-btn {
+    border: 1px dashed var(--line-strong) !important;
+    border-top: 1px dashed var(--line-strong) !important;
+}
+
+.add-btn.sidebar-row-btn:hover {
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    border-color: var(--line-strong) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.api-link-btn.sidebar-row-btn {
+    border: 1px solid transparent !important;
+}
+
+.api-link-btn.sidebar-row-btn:hover,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn {
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.api-link-btn.sidebar-row-btn i,
+.api-link-btn.sidebar-row-btn svg,
+.api-link-btn.sidebar-row-btn .sidebar-row-icon {
+    animation: none !important;
+}
+
+body.studio-theme-dark .provider-card:hover,
+body.studio-theme-dark .provider-card.active,
+html.studio-theme-dark body .provider-card:hover,
+html.studio-theme-dark body .provider-card.active {
+    background: rgba(255, 255, 255, 0.07) !important;
+}
+
+body.studio-theme-dark .provider-card.active::before,
+html.studio-theme-dark body .provider-card.active::before {
+    background: #e8e8ea !important;
+}
+
+body.studio-theme-dark .provider-icon,
+html.studio-theme-dark body .provider-icon {
+    background: rgba(255, 255, 255, 0.055) !important;
+    border-color: rgba(148, 163, 184, 0.18) !important;
+    color: #8f9aab !important;
+}
+
+body.studio-theme-dark .provider-card.active .provider-icon,
+html.studio-theme-dark body .provider-card.active .provider-icon {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #e8e8ea !important;
+}
+
+body.studio-theme-dark .provider-badge,
+html.studio-theme-dark body .provider-badge {
+    background: rgba(255, 255, 255, 0.055) !important;
+    border-color: rgba(148, 163, 184, 0.18) !important;
+    color: #8f9aab !important;
+}
+
+body.studio-theme-dark .provider-card.active .provider-badge,
+html.studio-theme-dark body .provider-card.active .provider-badge {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #e8e8ea !important;
+}
+
+body.studio-theme-dark .sidebar-row-btn:hover,
+body.studio-theme-dark .add-btn.sidebar-row-btn:hover,
+body.studio-theme-dark .api-link-btn.sidebar-row-btn:hover,
+html.studio-theme-dark body .sidebar-row-btn:hover,
+html.studio-theme-dark body .add-btn.sidebar-row-btn:hover,
+html.studio-theme-dark body .api-link-btn.sidebar-row-btn:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #e8e8ea !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+body.show-recommend-mode .provider-card.active {
+    background: transparent !important;
+    color: var(--muted) !important;
+}
+
+body.show-recommend-mode .provider-card.active::before {
+    background: transparent !important;
+}
+
+/* 侧栏行按钮：选中/悬停整行铺满，图标区不再露白 */
+.api-link-btn.sidebar-row-btn,
+body.studio-theme-dark .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body .api-link-btn.sidebar-row-btn,
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn {
+    border: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    overflow: visible !important;
+}
+
+.api-link-btn.sidebar-row-btn::after {
+    display: none !important;
+}
+
+.api-link-btn.sidebar-row-btn {
+    background: transparent !important;
+    color: var(--muted) !important;
+}
+
+.sidebar-row-btn:hover .sidebar-row-icon,
+.sidebar-row-btn:focus-visible .sidebar-row-icon,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: inherit !important;
+}
+
+body.studio-theme-dark .api-link-btn.sidebar-row-btn:hover,
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body .api-link-btn.sidebar-row-btn:hover,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #e8e8ea !important;
+}
+
+body.studio-theme-dark .sidebar-row-btn:hover .sidebar-row-icon,
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon,
+html.studio-theme-dark body .sidebar-row-btn:hover .sidebar-row-icon,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: inherit !important;
+}
+
+.add-btn.sidebar-row-btn:hover .sidebar-row-icon {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: inherit !important;
+}
+
+/* 侧栏行图标可见性（覆盖全局 api-link-btn CTA 样式） */
+.sidebar-row-icon i,
+.sidebar-row-icon svg {
+    display: block !important;
+    flex: 0 0 auto !important;
+    color: inherit !important;
+    stroke: currentColor !important;
+    fill: none !important;
+    opacity: 1 !important;
+}
+
+html.studio-theme-dark body .sidebar-row-icon,
+body.studio-theme-dark .sidebar-row-icon {
+    background: rgba(255, 255, 255, 0.055) !important;
+    border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+.api-link-btn.sidebar-row-btn:not(:hover),
+body.studio-theme-dark .api-link-btn.sidebar-row-btn:not(:hover),
+html.studio-theme-dark body .api-link-btn.sidebar-row-btn:not(:hover) {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--muted) !important;
+}
+
+/* 推荐平台内嵌卡片：随内容增高，分组内保持双列 */
+.provider-onboarding-card.recommend-inline-card {
+    min-height:0 !important;
+    height:auto !important;
+    overflow:visible !important;
+    justify-content:flex-start !important;
+}
+
+.recommend-inline-card .recommend-inline-body,
+.recommend-inline-card .recommend-api-body {
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:16px !important;
+    padding:0 !important;
+    min-height:0 !important;
+    height:auto !important;
+    overflow:visible !important;
+    flex:0 0 auto !important;
+}
+
+.recommend-inline-card .recommend-group {
+    grid-column:1 / -1;
+    display:grid !important;
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+    gap:14px !important;
+}
+
+.recommend-inline-card .recommend-platform-card {
+    min-height:0 !important;
+    overflow:visible !important;
+}
+
+.recommend-inline-card .recommend-platform-setup {
+    overflow:visible !important;
+}
+
+/* ===== 推荐平台卡片布局 v4 — 权威覆盖（修复 ~450px 窄卡片裁切） ===== */
+.recommend-inline-card .recommend-group {
+    gap:16px !important;
+}
+
+.recommend-platform-card,
+.recommend-inline-card .recommend-platform-card,
+.recommend-inline-body .recommend-platform-card {
+    display:grid !important;
+    grid-template-columns:minmax(0, .88fr) minmax(0, 1.12fr) !important;
+    align-items:stretch !important;
+    gap:14px !important;
+    padding:14px !important;
+    min-width:0 !important;
+    min-height:0 !important;
+    height:auto !important;
+    overflow:visible !important;
+}
+
+.recommend-platform-info,
+.recommend-platform-setup,
+.recommend-inline-card .recommend-platform-info,
+.recommend-inline-card .recommend-platform-setup {
+    min-width:0 !important;
+    overflow:visible !important;
+}
+
+.recommend-inline-card .recommend-platform-setup {
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:center !important;
+    gap:8px !important;
+    padding:0 !important;
+    border:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+}
+
+.recommend-inline-card .recommend-setup-title,
+.recommend-platform-setup .recommend-setup-title {
+    margin:0 !important;
+    padding:0 !important;
+    align-self:stretch !important;
+    color:var(--muted) !important;
+    font-size:10.5px !important;
+    font-weight:800 !important;
+    letter-spacing:.04em !important;
+    text-transform:uppercase !important;
+    line-height:1.2 !important;
+}
+
+/* 快捷设置：纵向堆叠（获取 Key → 输入保存），避免窄列横向裁切 */
+.recommend-setup-flow,
+.recommend-inline-card .recommend-setup-flow,
+.recommend-inline-body .recommend-setup-flow {
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    gap:8px !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    overflow:visible !important;
+}
+
+.recommend-guide-arrow,
+.recommend-inline-card .recommend-guide-arrow,
+.recommend-inline-body .recommend-setup-flow .recommend-guide-arrow {
+    display:none !important;
+}
+
+.recommend-guide-source,
+.recommend-guide-save,
+.recommend-inline-card .recommend-guide-source,
+.recommend-inline-card .recommend-guide-save,
 .recommend-inline-body .recommend-setup-flow .recommend-guide-source,
 .recommend-inline-body .recommend-setup-flow .recommend-guide-save {
     width:100% !important;
     min-width:0 !important;
     max-width:100% !important;
-}
-.recommend-inline-body .recommend-setup-flow .recommend-guide-arrow {
-    display:flex !important;
-    align-self:center !important;
-    justify-self:center !important;
-    width:24px !important;
-    min-width:24px !important;
-    transform:none !important;
+    min-height:0 !important;
+    max-height:none !important;
+    overflow:visible !important;
+    box-sizing:border-box !important;
+    border:1px solid var(--line) !important;
+    border-radius:8px !important;
+    background:var(--bg) !important;
+    box-shadow:none !important;
 }
 
-@media (max-width:760px) {
-    .recommend-inline-body .recommend-setup-flow {
-        display:flex !important;
-        flex-direction:column !important;
-        align-items:stretch !important;
-        grid-template-columns:none !important;
+.recommend-guide-source,
+.recommend-inline-card .recommend-guide-source,
+.recommend-inline-body .recommend-setup-flow .recommend-guide-source {
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:center !important;
+    align-items:stretch !important;
+    gap:6px !important;
+    padding:8px 10px !important;
+}
+
+.recommend-guide-source .onboarding-rh-source-label,
+.recommend-inline-card .recommend-guide-source .onboarding-rh-source-label {
+    margin:0 !important;
+    font-size:10px !important;
+    font-weight:800 !important;
+    line-height:1.2 !important;
+}
+
+.recommend-guide-key-stack,
+.recommend-inline-card .recommend-guide-key-stack,
+.recommend-inline-card .recommend-single-action {
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    gap:6px !important;
+    width:100% !important;
+    min-width:0 !important;
+}
+
+.recommend-guide-key-btn,
+.recommend-inline-card .recommend-guide-key-btn {
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    min-height:28px !important;
+    height:28px !important;
+    padding:0 8px !important;
+    gap:4px !important;
+    border-radius:8px !important;
+    font-size:10px !important;
+    white-space:nowrap !important;
+}
+
+.recommend-guide-save,
+.recommend-inline-card .recommend-guide-save,
+.recommend-inline-body .recommend-setup-flow .recommend-guide-save {
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    gap:8px !important;
+    padding:8px 10px !important;
+}
+
+.recommend-guide-save-fields {
+    display:flex !important;
+    flex-direction:column !important;
+    gap:0 !important;
+    min-width:0 !important;
+    width:100% !important;
+}
+
+.recommend-guide-save .onboarding-key-field,
+.recommend-guide-save .onboarding-rh-row-field,
+.recommend-inline-card .recommend-guide-save .onboarding-key-field,
+.recommend-inline-card .recommend-guide-save .onboarding-rh-row-field {
+    display:flex !important;
+    flex-direction:column !important;
+    gap:6px !important;
+    width:100% !important;
+    min-width:0 !important;
+    min-height:0 !important;
+    padding:0 !important;
+    border:0 !important;
+    background:transparent !important;
+}
+
+.recommend-guide-save .onboarding-key-field span,
+.recommend-inline-card .recommend-guide-save .onboarding-key-field span {
+    margin:0 0 4px !important;
+    font-size:10px !important;
+    font-weight:800 !important;
+    line-height:1.2 !important;
+}
+
+.recommend-guide-save .onboarding-key-field input,
+.recommend-inline-card .recommend-guide-save .onboarding-key-field input {
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    height:30px !important;
+    box-sizing:border-box !important;
+}
+
+.recommend-key-hint,
+.recommend-inline-card .recommend-key-hint {
+    display:block !important;
+    margin:4px 0 0 !important;
+    padding:0 !important;
+    color:var(--muted) !important;
+    font-size:9.5px !important;
+    font-style:normal !important;
+    font-weight:750 !important;
+    line-height:1.35 !important;
+    white-space:normal !important;
+    word-break:break-word !important;
+    writing-mode:horizontal-tb !important;
+}
+
+.recommend-guide-save-btn,
+.recommend-inline-card .recommend-guide-save-btn {
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    height:30px !important;
+    min-height:30px !important;
+    padding:0 12px !important;
+    border-radius:8px !important;
+    font-size:11px !important;
+    white-space:nowrap !important;
+    align-self:stretch !important;
+    flex-shrink:0 !important;
+    margin:0 !important;
+}
+
+body:not(.studio-theme-dark) .recommend-inline-card .recommend-guide-source,
+body:not(.studio-theme-dark) .recommend-inline-card .recommend-guide-save,
+html:not(.studio-theme-dark) body:not(.theme-dark) .recommend-inline-card .recommend-guide-source,
+html:not(.studio-theme-dark) body:not(.theme-dark) .recommend-inline-card .recommend-guide-save {
+    background:#ffffff !important;
+    border-color:#e3eaf3 !important;
+}
+
+body.studio-theme-dark .recommend-inline-card .recommend-guide-source,
+body.studio-theme-dark .recommend-inline-card .recommend-guide-save,
+html.studio-theme-dark body .recommend-inline-card .recommend-guide-source,
+html.studio-theme-dark body .recommend-inline-card .recommend-guide-save {
+    background:var(--panel) !important;
+    border-color:var(--line-strong) !important;
+}
+
+@media (max-width:900px) {
+    .recommend-inline-card .recommend-platform-card,
+    .recommend-inline-body .recommend-platform-card {
+        grid-template-columns:1fr !important;
+        gap:12px !important;
     }
 
-    .recommend-inline-body .recommend-setup-flow .recommend-guide-arrow {
-        display:none !important;
+    .recommend-inline-card .recommend-tags {
+        margin-top:0 !important;
+    }
+}
+
+/* ===== 推荐平台卡片布局 v5 — 紧凑工具栏（权威覆盖 v4） ===== */
+.recommend-platform-card,
+.recommend-inline-card .recommend-platform-card,
+.recommend-inline-body .recommend-platform-card {
+    grid-template-columns:minmax(0, .9fr) minmax(0, 1.1fr) !important;
+    gap:12px !important;
+    padding:12px 14px !important;
+    min-height:0 !important;
+    height:auto !important;
+}
+
+.recommend-inline-card .recommend-platform-info,
+.recommend-platform-info {
+    gap:6px !important;
+}
+
+.recommend-inline-card .recommend-platform-summary,
+.recommend-platform-summary {
+    margin:0 !important;
+    font-size:11.5px !important;
+    line-height:1.5 !important;
+}
+
+.recommend-inline-card .recommend-tags,
+.recommend-tags {
+    gap:4px !important;
+    margin-top:2px !important;
+}
+
+.recommend-inline-card .recommend-platform-setup,
+.recommend-platform-setup {
+    gap:6px !important;
+    padding:0 !important;
+    border:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+}
+
+.recommend-inline-card .recommend-setup-title,
+.recommend-platform-setup .recommend-setup-title {
+    margin:0 0 2px !important;
+    font-size:10px !important;
+    letter-spacing:.05em !important;
+}
+
+.recommend-setup-compact {
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:0;
+}
+
+.recommend-compact-toolbar {
+    display:grid;
+    grid-template-columns:auto minmax(0, 1fr) auto;
+    gap:6px;
+    align-items:center;
+    min-width:0;
+}
+
+.recommend-compact-toolbar.is-dual-keys {
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    gap:6px;
+}
+
+.recommend-compact-keys {
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:6px;
+    min-width:0;
+}
+
+.recommend-compact-keys .recommend-compact-key-btn {
+    flex:1 1 calc(50% - 3px);
+    min-width:0;
+}
+
+.recommend-compact-key-btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    height:28px;
+    min-height:28px;
+    padding:0 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--bg);
+    color:var(--text);
+    font-size:10.5px;
+    font-weight:800;
+    line-height:1;
+    text-decoration:none;
+    white-space:nowrap;
+    box-sizing:border-box;
+    transition:background .15s ease, border-color .15s ease;
+}
+
+.recommend-compact-key-btn:hover {
+    background:var(--soft);
+    border-color:var(--line-strong);
+    color:var(--text);
+}
+
+.recommend-compact-input-row {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    min-width:0;
+}
+
+.recommend-compact-input {
+    width:100%;
+    min-width:0;
+    height:32px;
+    padding:0 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--bg);
+    color:var(--text);
+    font-size:12px;
+    font-weight:650;
+    box-sizing:border-box;
+}
+
+.recommend-compact-input:focus {
+    outline:none;
+    border-color:rgba(96,165,250,.55);
+    box-shadow:0 0 0 2px rgba(96,165,250,.12);
+}
+
+.recommend-compact-save-btn,
+.recommend-inline-card .recommend-compact-save-btn {
+    flex:0 0 auto;
+    width:auto !important;
+    min-width:0 !important;
+    max-width:none !important;
+    height:32px !important;
+    min-height:32px !important;
+    padding:0 12px !important;
+    border-radius:8px !important;
+    font-size:11px !important;
+    white-space:nowrap !important;
+    margin:0 !important;
+}
+
+.recommend-inline-card .recommend-key-hint,
+.recommend-key-hint {
+    display:block !important;
+    margin:0 !important;
+    padding:0 !important;
+    color:var(--muted) !important;
+    font-size:9.5px !important;
+    font-style:normal !important;
+    font-weight:750 !important;
+    line-height:1.35 !important;
+}
+
+body:not(.studio-theme-dark) .recommend-compact-key-btn,
+html:not(.studio-theme-dark) body:not(.theme-dark) .recommend-compact-key-btn {
+    background:#ffffff;
+    border-color:#e3eaf3;
+}
+
+body:not(.studio-theme-dark) .recommend-compact-input,
+html:not(.studio-theme-dark) body:not(.theme-dark) .recommend-compact-input {
+    background:#ffffff;
+    border-color:#e3eaf3;
+}
+
+body.studio-theme-dark .recommend-compact-key-btn,
+body.studio-theme-dark .recommend-compact-input,
+html.studio-theme-dark body .recommend-compact-key-btn,
+html.studio-theme-dark body .recommend-compact-input {
+    background:var(--panel);
+    border-color:var(--line-strong);
+}
+
+@media (max-width:900px) {
+    .recommend-compact-toolbar:not(.is-dual-keys) {
+        display:flex;
+        flex-direction:column;
+        align-items:stretch;
+        gap:6px;
+    }
+
+    .recommend-compact-toolbar:not(.is-dual-keys) .recommend-compact-save-btn {
+        width:100% !important;
+    }
+}
+
+/* 推荐API 侧栏选中态：与 provider-card.active 对齐（权威覆盖） */
+body.show-recommend-mode .api-link-btn.sidebar-row-btn,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn:not(:hover) {
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    border: 0 !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+body.show-recommend-mode .api-link-btn.sidebar-row-btn:hover {
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+body.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon {
+    background: var(--panel) !important;
+    border-color: var(--line-strong) !important;
+    color: var(--text) !important;
+}
+
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn,
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn:not(:hover),
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn:not(:hover) {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #e8e8ea !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn:hover,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #e8e8ea !important;
+    box-shadow: none !important;
+}
+
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(148, 163, 184, 0.18) !important;
+    color: #e8e8ea !important;
+}
+
+/* ===== 推荐平台卡片布局 v6 — 保存按钮统一右上角 ===== */
+.recommend-platform-card,
+.recommend-inline-card .recommend-platform-card,
+.recommend-inline-body .recommend-platform-card {
+    display:flex !important;
+    flex-direction:column !important;
+    grid-template-columns:none !important;
+    gap:0 !important;
+}
+
+.recommend-card-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin:0 0 8px;
+    min-width:0;
+}
+
+.recommend-card-header-main {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-width:0;
+    flex:1 1 auto;
+}
+
+.recommend-card-header .recommend-name {
+    min-width:0;
+}
+
+.recommend-card-save-top,
+.recommend-inline-card .recommend-card-save-top {
+    flex:0 0 auto;
+    height:28px !important;
+    min-height:28px !important;
+    padding:0 12px !important;
+    border-radius:8px !important;
+    font-size:11px !important;
+    white-space:nowrap !important;
+    margin:0 !important;
+}
+
+.recommend-card-columns {
+    display:grid;
+    grid-template-columns:minmax(0, .9fr) minmax(0, 1.1fr);
+    gap:12px;
+    min-width:0;
+    flex:1 1 auto;
+}
+
+.recommend-compact-toolbar {
+    grid-template-columns:auto minmax(0, 1fr) !important;
+}
+
+.recommend-compact-toolbar.is-dual-keys .recommend-compact-input {
+    width:100%;
+}
+
+@media (max-width:900px) {
+    .recommend-card-columns {
+        grid-template-columns:1fr;
+        gap:10px;
+    }
+}
+
+/* ===== 推荐平台卡片布局 v7 — 获取 Key 链接置于平台名后 ===== */
+.recommend-card-header-main {
+    flex-wrap:wrap;
+    row-gap:4px;
+}
+
+.recommend-key-links {
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    flex-wrap:wrap;
+}
+
+.recommend-key-links-sep {
+    color:var(--faint);
+    font-size:11px;
+    line-height:1;
+    user-select:none;
+}
+
+.recommend-get-key-link {
+    display:inline-flex;
+    align-items:center;
+    gap:3px;
+    padding:0;
+    border:0;
+    background:transparent;
+    color:#2563eb;
+    font-size:11px;
+    font-weight:700;
+    line-height:1.2;
+    text-decoration:none;
+    white-space:nowrap;
+    transition:color .15s ease, opacity .15s ease;
+}
+
+.recommend-get-key-link:hover {
+    color:#1d4ed8;
+    text-decoration:underline;
+    text-underline-offset:2px;
+}
+
+.recommend-get-key-link i,
+.recommend-get-key-link svg {
+    width:12px;
+    height:12px;
+    flex:0 0 auto;
+    opacity:.85;
+}
+
+body.studio-theme-dark .recommend-get-key-link,
+html.studio-theme-dark body .recommend-get-key-link {
+    color:#93c5fd;
+}
+
+body.studio-theme-dark .recommend-get-key-link:hover,
+html.studio-theme-dark body .recommend-get-key-link:hover {
+    color:#bfdbfe;
+}
+
+.recommend-platform-setup .recommend-setup-compact {
+    gap:4px;
+}
+
+.recommend-platform-setup .recommend-compact-input {
+    width:100%;
+}
+
+.recommend-card-header .recommend-badge {
+    margin-left:auto;
+}
+
+@media (max-width:900px) {
+    .recommend-card-header .recommend-badge {
+        margin-left:0;
     }
 }
