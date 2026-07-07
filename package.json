@@ -8,7 +8,9 @@
     "desktop": "electron .",
     "electron": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis zip"
   },
   "devDependencies": {
     "electron": "^37.2.0",

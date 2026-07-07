@@ -52,6 +52,42 @@ npm run desktop
 - Windows：`dist-electron/无限画布 Setup x.x.x.exe`
 - 应用目录：`dist-electron/mac-arm64/无限画布.app`
 
+## GitHub Actions 自动发布
+
+推送版本 tag 后，会自动在 macOS / Windows 上构建安装包并创建 [GitHub Release](https://github.com/Aliax-LI/Infinite-Canvas-V1/releases) 供下载。
+
+### 发布步骤
+
+1. 更新版本号（保持 `VERSION` 与 `package.json` 的 `version` 一致）：
+
+```bash
+echo "2026.07.7" > VERSION
+# 同步 package.json 中的 version 字段
+```
+
+2. 提交并打 tag（必须以 `v` 开头）：
+
+```bash
+git add VERSION package.json
+git commit -m "chore: 发布 2026.07.7"
+git tag v2026.07.7
+git push origin main --tags
+```
+
+3. Actions 工作流 `Release Desktop` 会自动：
+   - 构建 macOS `arm64` / `x64` 的 `.dmg`
+   - 构建 Windows `.exe`（NSIS）与 `.zip`
+   - 创建 Release 并上传安装包
+
+### 手动触发（不打 tag）
+
+在 GitHub → Actions → **Release Desktop** → **Run workflow**：
+
+- 填写 `version`（如 `2026.07.7`）
+- 勾选 `create_release` 可创建对应 Release
+
+> CI 构建未做代码签名，macOS 首次打开可能需在「系统设置 → 隐私与安全性」中允许；Windows 可能触发 SmartScreen 提示。
+
 图标来源于 `static/images/logo.png`，产物名称为中文「无限画布」。
 
 ## 数据目录
