@@ -6923,6 +6923,24 @@ html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn .s
     color: #e8e8ea !important;
 }
 
+body.show-cli-mode .api-link-btn.sidebar-row-btn,
+body.show-cli-mode .api-link-btn.sidebar-row-btn:not(:hover),
+html.studio-theme-dark body.show-cli-mode .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body.show-cli-mode .api-link-btn.sidebar-row-btn:not(:hover) {
+    background: transparent !important;
+    color: var(--muted) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+body.show-cli-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon,
+html.studio-theme-dark body.show-cli-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: inherit !important;
+}
+
 /* ===== 推荐平台卡片布局 v6 — 保存按钮统一右上角 ===== */
 .recommend-platform-card,
 .recommend-inline-card .recommend-platform-card,
@@ -7064,5 +7082,905 @@ html.studio-theme-dark body .recommend-get-key-link:hover {
 @media (max-width:900px) {
     .recommend-card-header .recommend-badge {
         margin-left:0;
+    }
+}
+
+/* Settings shell final embed authority: keep the page dense inside the desktop settings surface. */
+html.studio-settings-embed body {
+    font-family: var(--font-sans) !important;
+}
+
+html.studio-settings-embed .layout {
+    background: var(--bg) !important;
+}
+
+html.studio-settings-embed .sidebar {
+    flex-basis: 236px !important;
+    padding: 14px 10px 18px 16px !important;
+    background: var(--bg) !important;
+}
+
+html.studio-settings-embed .content,
+html.studio-settings-embed .recommend-content {
+    padding: 14px 18px 20px !important;
+    gap: 12px !important;
+}
+
+html.studio-settings-embed .content-head {
+    padding: 16px 18px !important;
+}
+
+html.studio-settings-embed .block {
+    padding: 18px !important;
+}
+
+html.studio-settings-embed .content-head,
+html.studio-settings-embed .block,
+html.studio-settings-embed .provider-onboarding-card,
+html.studio-settings-embed .recommend-card {
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .sidebar,
+html.studio-settings-embed .provider-card,
+html.studio-settings-embed .provider-mark,
+html.studio-settings-embed .sidebar-row-btn,
+html.studio-settings-embed .sidebar-row-icon,
+html.studio-settings-embed .cli-quick-btn,
+html.studio-settings-embed .cli-quick-note,
+html.studio-settings-embed .content-head,
+html.studio-settings-embed .block,
+html.studio-settings-embed .field-frame,
+html.studio-settings-embed .key-panel,
+html.studio-settings-embed .advanced-endpoints,
+html.studio-settings-embed .provider-onboarding-card,
+html.studio-settings-embed .recommend-card,
+html.studio-settings-embed .recommend-platform-card,
+html.studio-settings-embed .recommend-badge,
+html.studio-settings-embed .recommend-tag,
+html.studio-settings-embed .recommend-compact-input,
+html.studio-settings-embed .recommend-card-save-top,
+html.studio-settings-embed .action-btn,
+html.studio-settings-embed .key-btn,
+html.studio-settings-embed .ghost-btn,
+html.studio-settings-embed .model-row,
+html.studio-settings-embed .model-protocol-select,
+html.studio-settings-embed .picker-modal,
+html.studio-settings-embed .picker-search,
+html.studio-settings-embed .picker-cat-tab {
+    border-radius: 0 !important;
+}
+
+html.studio-settings-embed .provider-card,
+html.studio-settings-embed .sidebar-row-btn,
+html.studio-settings-embed .cli-quick-btn {
+    min-height: 38px !important;
+}
+
+@media (max-width: 900px) {
+    html.studio-settings-embed .sidebar {
+        padding: 12px 14px !important;
+    }
+
+    html.studio-settings-embed .content,
+    html.studio-settings-embed .recommend-content {
+        padding: 12px 14px 18px !important;
+    }
+}
+
+/* Unified settings form authority. Keep API, CLI, recommend and provider guides on one visual system. */
+:root {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --soft: #f1f4f8;
+    --line: #e3e8f0;
+    --line-strong: #d4dce8;
+    --text: #111827;
+    --muted: #687386;
+    --faint: #94a3b8;
+    --accent: #1f2937;
+    --accent-contrast: #ffffff;
+}
+
+body.studio-theme-dark,
+html.studio-theme-dark body {
+    --bg: #0f141d;
+    --panel: #171d29;
+    --soft: #111722;
+    --line: #2a3444;
+    --line-strong: #3a4658;
+    --text: #e5e9f0;
+    --muted: #9aa6b8;
+    --faint: #6f7b8f;
+    --accent: #d8dee9;
+    --accent-contrast: #10141d;
+}
+
+html.studio-settings-embed,
+html.studio-settings-embed body,
+html.studio-settings-embed .page,
+html.studio-settings-embed .wrap,
+html.studio-settings-embed .layout {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+    font-family: var(--font-sans) !important;
+}
+
+html.studio-settings-embed .layout {
+    grid-template-columns: 236px minmax(0, 1fr) !important;
+    gap: 0 !important;
+    min-height: 100% !important;
+}
+
+html.studio-settings-embed .sidebar {
+    position: sticky !important;
+    top: 0 !important;
+    align-self: start !important;
+    max-height: 100vh !important;
+    padding: 14px 10px 18px 16px !important;
+    border: 0 !important;
+    border-right: 1px solid var(--line) !important;
+    background: var(--bg) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .content,
+html.studio-settings-embed .recommend-content {
+    padding: 14px 18px 22px !important;
+    gap: 12px !important;
+}
+
+html.studio-settings-embed .content-head,
+html.studio-settings-embed .block,
+html.studio-settings-embed .provider-onboarding-card,
+html.studio-settings-embed .recommend-card,
+html.studio-settings-embed .recommend-platform-card,
+html.studio-settings-embed .picker-modal,
+html.studio-settings-embed .rh-key-item,
+html.studio-settings-embed .jimeng-cli-panel,
+html.studio-settings-embed .runninghub-config-block {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .content-head {
+    padding: 16px 18px !important;
+}
+
+html.studio-settings-embed .block {
+    padding: 18px !important;
+}
+
+html.studio-settings-embed .block-head {
+    border-bottom-color: var(--line) !important;
+}
+
+html.studio-settings-embed .side-section-title,
+html.studio-settings-embed .block-desc,
+html.studio-settings-embed .editor-sub,
+html.studio-settings-embed .hint,
+html.studio-settings-embed .provider-meta,
+html.studio-settings-embed .cli-quick-note,
+html.studio-settings-embed .recommend-key-hint,
+html.studio-settings-embed .onboarding-desc,
+html.studio-settings-embed .rh-key-desc {
+    color: var(--muted) !important;
+}
+
+html.studio-settings-embed .editor-title,
+html.studio-settings-embed .block-title,
+html.studio-settings-embed .provider-name,
+html.studio-settings-embed .recommend-name,
+html.studio-settings-embed .onboarding-title,
+html.studio-settings-embed .onboarding-step-title,
+html.studio-settings-embed .rh-key-title {
+    color: var(--text) !important;
+}
+
+html.studio-settings-embed .provider-card,
+html.studio-settings-embed .sidebar-row-btn,
+html.studio-settings-embed .cli-quick-btn {
+    position: relative !important;
+    min-height: 38px !important;
+    border: 1px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .provider-card:hover,
+html.studio-settings-embed .sidebar-row-btn:hover,
+html.studio-settings-embed .cli-quick-btn:hover {
+    border-color: transparent !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .provider-card.active,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn:hover,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn:hover {
+    border-color: transparent !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: inset 2px 0 0 var(--accent) !important;
+    transform: none !important;
+}
+
+body.show-recommend-mode .provider-card.active {
+    background: transparent !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .provider-mark,
+html.studio-settings-embed .sidebar-row-icon,
+html.studio-settings-embed .workflow-icon {
+    width: 30px !important;
+    height: 30px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: currentColor !important;
+}
+
+html.studio-settings-embed .provider-card.active .provider-mark,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon,
+html.studio-settings-embed .sidebar-row-btn:hover .sidebar-row-icon,
+html.studio-settings-embed .cli-quick-btn:hover .sidebar-row-icon {
+    border-color: var(--line-strong) !important;
+    background: var(--panel) !important;
+    color: var(--text) !important;
+}
+
+html.studio-settings-embed .api-link-btn,
+html.studio-settings-embed .api-link-btn.sidebar-row-btn,
+html.studio-settings-embed .api-link-btn.sidebar-row-btn:not(:hover),
+body.show-cli-mode .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body.show-cli-mode .api-link-btn.sidebar-row-btn {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .api-link-btn i,
+html.studio-settings-embed .api-link-btn svg {
+    animation: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn,
+html.studio-settings-embed .ghost-btn,
+html.studio-settings-embed .key-btn,
+html.studio-settings-embed .onboarding-key-btn,
+html.studio-settings-embed .recommend-guide-key-btn,
+html.studio-settings-embed .recommend-compact-key-btn,
+html.studio-settings-embed .picker-cat-tab {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn:hover,
+html.studio-settings-embed .ghost-btn:hover,
+html.studio-settings-embed .key-btn:hover,
+html.studio-settings-embed .onboarding-key-btn:hover,
+html.studio-settings-embed .recommend-guide-key-btn:hover,
+html.studio-settings-embed .recommend-compact-key-btn:hover,
+html.studio-settings-embed .picker-cat-tab:hover {
+    border-color: var(--line-strong) !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn.save-btn,
+html.studio-settings-embed .action-btn.primary-btn,
+html.studio-settings-embed .onboarding-save-btn,
+html.studio-settings-embed .recommend-guide-save-btn,
+html.studio-settings-embed .recommend-card-save-top,
+html.studio-settings-embed .recommend-compact-save-btn,
+html.studio-settings-embed .recommend-register,
+html.studio-settings-embed .picker-summary + .picker-foot .save-btn {
+    border-color: var(--accent) !important;
+    background: var(--accent) !important;
+    color: var(--accent-contrast) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn.save-btn:hover,
+html.studio-settings-embed .action-btn.primary-btn:hover,
+html.studio-settings-embed .onboarding-save-btn:hover,
+html.studio-settings-embed .recommend-guide-save-btn:hover,
+html.studio-settings-embed .recommend-card-save-top:hover,
+html.studio-settings-embed .recommend-compact-save-btn:hover {
+    opacity: .92 !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .danger-btn,
+html.studio-settings-embed .action-btn.danger-btn {
+    border-color: rgba(239, 68, 68, .28) !important;
+    background: transparent !important;
+    color: #dc2626 !important;
+}
+
+html.studio-theme-dark body .danger-btn,
+html.studio-theme-dark body .action-btn.danger-btn {
+    border-color: rgba(248, 113, 113, .28) !important;
+    color: #fca5a5 !important;
+}
+
+html.studio-settings-embed .field-frame,
+html.studio-settings-embed .key-panel,
+html.studio-settings-embed .advanced-endpoints,
+html.studio-settings-embed .model-row,
+html.studio-settings-embed .lora-row,
+html.studio-settings-embed .onboarding-step-panel,
+html.studio-settings-embed .onboarding-rh-source-group,
+html.studio-settings-embed .onboarding-rh-row-field,
+html.studio-settings-embed .recommend-guide-source,
+html.studio-settings-embed .recommend-guide-save,
+html.studio-settings-embed .recommend-compact-input,
+html.studio-settings-embed .recommend-note,
+html.studio-settings-embed .cli-quick-note,
+html.studio-settings-embed .picker-search,
+html.studio-settings-embed .model-protocol-select {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .field-frame input,
+html.studio-settings-embed .field-frame select,
+html.studio-settings-embed .field-frame textarea,
+html.studio-settings-embed .onboarding-key-field input,
+html.studio-settings-embed .recommend-compact-input,
+html.studio-settings-embed .rh-paste-input,
+html.studio-settings-embed input,
+html.studio-settings-embed textarea,
+html.studio-settings-embed select {
+    color: var(--text) !important;
+}
+
+html.studio-settings-embed .field-frame:focus-within,
+html.studio-settings-embed .onboarding-key-field:focus-within,
+html.studio-settings-embed .recommend-compact-input:focus,
+html.studio-settings-embed .picker-search:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, .16) !important;
+}
+
+html.studio-settings-embed .recommend-inline-card {
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+html.studio-settings-embed .recommend-inline-card .onboarding-head {
+    padding: 16px 18px !important;
+    border-bottom: 1px solid var(--line) !important;
+    background: var(--panel) !important;
+}
+
+html.studio-settings-embed .recommend-inline-card .recommend-api-body {
+    padding: 14px 18px !important;
+}
+
+html.studio-settings-embed .recommend-group {
+    gap: 12px !important;
+}
+
+html.studio-settings-embed .recommend-platform-card {
+    padding: 14px !important;
+    gap: 10px !important;
+}
+
+html.studio-settings-embed .recommend-card-header {
+    margin-bottom: 8px !important;
+}
+
+html.studio-settings-embed .recommend-badge,
+html.studio-settings-embed .recommend-tag,
+html.studio-settings-embed .onboarding-badge {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--soft) !important;
+    color: var(--muted) !important;
+}
+
+html.studio-settings-embed .recommend-tag.recommend-perk-tag {
+    border-color: var(--line-strong) !important;
+    color: var(--text) !important;
+}
+
+html.studio-settings-embed .recommend-tag.recommend-perk-tag > span,
+html.studio-settings-embed .recommend-tag.recommend-perk-tag svg {
+    color: var(--text) !important;
+    stroke: currentColor !important;
+}
+
+html.studio-settings-embed .onboarding-ms-linear-panel {
+    padding: 16px !important;
+}
+
+html.studio-settings-embed .onboarding-rh-linear-row,
+html.studio-settings-embed .onboarding-ms-linear-row {
+    grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1.1fr) !important;
+    gap: 12px !important;
+}
+
+html.studio-settings-embed .onboarding-rh-row-arrow span,
+html.studio-settings-embed .recommend-guide-arrow span {
+    border-color: #3b82f6 !important;
+}
+
+html.studio-settings-embed .onboarding-rh-save-line {
+    justify-content: flex-end !important;
+}
+
+html.studio-settings-embed .onboarding-rh-save-all {
+    min-width: 156px !important;
+}
+
+html.studio-theme-dark body .content-head,
+html.studio-theme-dark body .block,
+html.studio-theme-dark body .provider-onboarding-card,
+html.studio-theme-dark body .recommend-card,
+html.studio-theme-dark body .recommend-platform-card,
+html.studio-theme-dark body .picker-modal {
+    background: var(--panel) !important;
+    border-color: var(--line) !important;
+}
+
+html.studio-theme-dark body .field-frame,
+html.studio-theme-dark body .key-panel,
+html.studio-theme-dark body .advanced-endpoints,
+html.studio-theme-dark body .model-row,
+html.studio-theme-dark body .lora-row,
+html.studio-theme-dark body .onboarding-step-panel,
+html.studio-theme-dark body .onboarding-rh-source-group,
+html.studio-theme-dark body .onboarding-rh-row-field,
+html.studio-theme-dark body .recommend-guide-source,
+html.studio-theme-dark body .recommend-guide-save,
+html.studio-theme-dark body .recommend-compact-input {
+    background: var(--soft) !important;
+    border-color: var(--line-strong) !important;
+}
+
+@media (max-width: 900px) {
+    html.studio-settings-embed .layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    html.studio-settings-embed .sidebar {
+        position: static !important;
+        max-height: none !important;
+        padding: 12px 14px !important;
+        border-right: 0 !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    html.studio-settings-embed .content,
+    html.studio-settings-embed .recommend-content {
+        padding: 12px 14px 18px !important;
+    }
+
+    html.studio-settings-embed .onboarding-rh-linear-row,
+    html.studio-settings-embed .onboarding-ms-linear-row {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Same authority for standalone API/CLI settings routes. */
+body,
+.page,
+.wrap,
+.layout {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+    font-family: var(--font-sans) !important;
+}
+
+.sidebar {
+    border-color: var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--bg) !important;
+    box-shadow: none !important;
+}
+
+.content-head,
+.block,
+.provider-onboarding-card,
+.recommend-card,
+.recommend-platform-card,
+.picker-modal,
+.rh-key-item,
+.jimeng-cli-panel,
+.runninghub-config-block {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+.provider-card,
+.sidebar-row-btn,
+.cli-quick-btn {
+    border: 1px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.provider-card:hover,
+.sidebar-row-btn:hover,
+.cli-quick-btn:hover {
+    border-color: transparent !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.provider-card.active,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn:hover {
+    border-color: transparent !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: inset 2px 0 0 var(--accent) !important;
+    transform: none !important;
+}
+
+.api-link-btn,
+.api-link-btn.sidebar-row-btn,
+.api-link-btn.sidebar-row-btn:not(:hover),
+body.show-cli-mode .api-link-btn.sidebar-row-btn,
+body.show-cli-mode .api-link-btn.sidebar-row-btn:not(:hover) {
+    border-color: transparent !important;
+    background: transparent !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.api-link-btn i,
+.api-link-btn svg {
+    animation: none !important;
+    transform: none !important;
+}
+
+.provider-mark,
+.sidebar-row-icon {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: currentColor !important;
+}
+
+.provider-card.active .provider-mark,
+.sidebar-row-btn:hover .sidebar-row-icon,
+body.show-recommend-mode .api-link-btn.sidebar-row-btn .sidebar-row-icon {
+    border-color: var(--line-strong) !important;
+    background: var(--panel) !important;
+    color: var(--text) !important;
+}
+
+.action-btn,
+.ghost-btn,
+.key-btn,
+.onboarding-key-btn,
+.recommend-guide-key-btn,
+.recommend-compact-key-btn,
+.picker-cat-tab {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.action-btn:hover,
+.ghost-btn:hover,
+.key-btn:hover,
+.onboarding-key-btn:hover,
+.recommend-guide-key-btn:hover,
+.recommend-compact-key-btn:hover,
+.picker-cat-tab:hover {
+    border-color: var(--line-strong) !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.action-btn.save-btn,
+.action-btn.primary-btn,
+.onboarding-save-btn,
+.recommend-guide-save-btn,
+.recommend-card-save-top,
+.recommend-compact-save-btn,
+.recommend-register {
+    border-color: var(--accent) !important;
+    background: var(--accent) !important;
+    color: var(--accent-contrast) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.field-frame,
+.key-panel,
+.advanced-endpoints,
+.model-row,
+.lora-row,
+.onboarding-step-panel,
+.onboarding-rh-source-group,
+.onboarding-rh-row-field,
+.recommend-guide-source,
+.recommend-guide-save,
+.recommend-compact-input,
+.recommend-note,
+.cli-quick-note,
+.picker-search,
+.model-protocol-select {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+body:not(.studio-theme-dark) .api-link-btn.sidebar-row-btn,
+body:not(.studio-theme-dark) .api-link-btn.sidebar-row-btn:not(:hover),
+html:not(.studio-theme-dark) body:not(.theme-dark) .api-link-btn.sidebar-row-btn,
+html:not(.studio-theme-dark) body:not(.theme-dark) .api-link-btn.sidebar-row-btn:not(:hover),
+body.studio-theme-dark .api-link-btn.sidebar-row-btn,
+body.studio-theme-dark .api-link-btn.sidebar-row-btn:not(:hover),
+html.studio-theme-dark body .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body .api-link-btn.sidebar-row-btn:not(:hover) {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+body:not(.studio-theme-dark).show-recommend-mode .api-link-btn.sidebar-row-btn,
+body:not(.studio-theme-dark).show-recommend-mode .api-link-btn.sidebar-row-btn:not(:hover),
+html:not(.studio-theme-dark) body:not(.theme-dark).show-recommend-mode .api-link-btn.sidebar-row-btn,
+html:not(.studio-theme-dark) body:not(.theme-dark).show-recommend-mode .api-link-btn.sidebar-row-btn:not(:hover),
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn,
+body.studio-theme-dark.show-recommend-mode .api-link-btn.sidebar-row-btn:not(:hover),
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn,
+html.studio-theme-dark body.show-recommend-mode .api-link-btn.sidebar-row-btn:not(:hover) {
+    background: var(--soft) !important;
+    background-color: var(--soft) !important;
+    border-color: transparent !important;
+    color: var(--text) !important;
+    box-shadow: inset 2px 0 0 var(--accent) !important;
+    transform: none !important;
+}
+
+/* Final responsive settings layout: full-width work surface, adaptive cards. */
+:root {
+    --settings-list-width: clamp(220px, 13vw, 292px);
+    --settings-content-max: 1480px;
+    --settings-recommend-max: 1680px;
+    --settings-gutter: clamp(14px, 1.35vw, 28px);
+}
+
+html.studio-settings-embed,
+html.studio-settings-embed body {
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+html.studio-settings-embed .page,
+html.studio-settings-embed .wrap {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+html.studio-settings-embed .wrap {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+html.studio-settings-embed .layout {
+    display: grid !important;
+    grid-template-columns: var(--settings-list-width) minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+}
+
+html.studio-settings-embed .sidebar {
+    position: relative !important;
+    top: auto !important;
+    width: auto !important;
+    flex: none !important;
+    max-height: none !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    padding: var(--settings-gutter) 10px var(--settings-gutter) 16px !important;
+}
+
+html.studio-settings-embed .provider-list {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+}
+
+html.studio-settings-embed .content,
+html.studio-settings-embed .recommend-content {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: var(--settings-gutter) !important;
+}
+
+html.studio-settings-embed .content > .content-head,
+html.studio-settings-embed .content > .block,
+html.studio-settings-embed .content > .models-toolbar,
+html.studio-settings-embed .content > .model-grid,
+html.studio-settings-embed .content > .runninghub-config-block {
+    width: min(100%, var(--settings-content-max)) !important;
+    max-width: var(--settings-content-max) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+html.studio-settings-embed .recommend-content > .content-head,
+html.studio-settings-embed .recommend-content > .provider-onboarding-card {
+    width: min(100%, var(--settings-recommend-max)) !important;
+    max-width: var(--settings-recommend-max) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+html.studio-settings-embed .recommend-inline-card .recommend-api-body,
+html.studio-settings-embed .recommend-api-body {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+    padding: var(--settings-gutter) !important;
+}
+
+html.studio-settings-embed .recommend-group,
+.recommend-inline-body .recommend-group {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)) !important;
+    gap: 16px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+html.studio-settings-embed .recommend-group-head {
+    grid-column: 1 / -1 !important;
+    margin: 0 !important;
+}
+
+html.studio-settings-embed .recommend-platform-card,
+html.studio-settings-embed .recommend-inline-card .recommend-platform-card,
+html.studio-settings-embed .recommend-inline-body .recommend-platform-card {
+    min-width: 0 !important;
+    height: auto !important;
+    padding: 16px !important;
+}
+
+html.studio-settings-embed .recommend-card-columns {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+}
+
+html.studio-settings-embed .recommend-platform-info,
+html.studio-settings-embed .recommend-platform-setup {
+    min-width: 0 !important;
+}
+
+html.studio-settings-embed .recommend-compact-toolbar,
+html.studio-settings-embed .recommend-compact-input-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+
+html.studio-settings-embed .recommend-compact-input {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+@media (min-width: 1800px) {
+    :root {
+        --settings-content-max: 1680px;
+        --settings-recommend-max: 1880px;
+    }
+}
+
+@media (max-width: 980px) {
+    html.studio-settings-embed,
+    html.studio-settings-embed body {
+        overflow: auto !important;
+    }
+
+    html.studio-settings-embed .layout {
+        grid-template-columns: 1fr !important;
+        height: auto !important;
+        min-height: 100% !important;
+    }
+
+    html.studio-settings-embed .sidebar {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        border-right: 0 !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    html.studio-settings-embed .provider-list,
+    html.studio-settings-embed .cli-quick-group {
+        max-height: none !important;
+    }
+
+    html.studio-settings-embed .content,
+    html.studio-settings-embed .recommend-content {
+        height: auto !important;
+        overflow: visible !important;
+    }
+}
+
+@media (max-width: 620px) {
+    html.studio-settings-embed .recommend-card-header {
+        align-items: flex-start !important;
+        flex-direction: column !important;
+    }
+
+    html.studio-settings-embed .recommend-card-save-top,
+    html.studio-settings-embed .recommend-compact-save-btn {
+        width: 100% !important;
+    }
+
+    html.studio-settings-embed .recommend-compact-toolbar,
+    html.studio-settings-embed .recommend-compact-input-row {
+        grid-template-columns: 1fr !important;
     }
 }

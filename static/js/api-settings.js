@@ -151,6 +151,7 @@ function applyCliProtocolDefaults(item, protocol){
 let rhWorkflowEditorState = { open:false, index:-1, entry:null, config:null, expanded:{}, activeNodeId:'', graph:{ k:1, x:0, y:0, w:0, h:0 }, pan:null, bound:false, previewParams:{}, previewRunning:false, previewStatus:'', previewOutputs:[] };
 let rhEditorMode = 'workflow';
 let recommendInlineOpen = false;
+let pendingFocusCli = false;
 let providerDragId = '';
 // category: 'stable'（稳定）| 'cheap'（便宜），推荐面板按分组分节展示
 const RECOMMENDED_APIS = [
@@ -2128,6 +2129,7 @@ function renderRhEntryList(target, list, kind){
 }
 function openRecommendApi(){
     recommendInlineOpen = true;
+    document.body.classList.remove('show-cli-mode');
     syncRecommendView();
     renderRecommendApi();
     renderProviderOnboarding(provider());
@@ -2138,6 +2140,23 @@ function closeRecommendApi(){
     syncRecommendView();
     renderRecommendApi();
     renderEditor();
+}
+function focusCliSettings(){
+    pendingFocusCli = true;
+    if(!providers.length) return;
+    document.body.classList.add('show-cli-mode');
+    recommendInlineOpen = false;
+    syncRecommendView();
+    renderRecommendApi();
+    syncEditor();
+    const cliItem = providers.find(item => CLI_PROTOCOLS.has(String(item.protocol || '').toLowerCase()))
+        || providers.find(item => CLI_PROVIDER_PRESETS[item.id]);
+    if(cliItem) selectedId = cliItem.id;
+    renderEditor();
+    const scrollTarget = document.getElementById('settingsContent') || document.scrollingElement;
+    try { scrollTarget?.scrollTo?.({ top:0, behavior:'smooth' }); } catch(e) { if(scrollTarget) scrollTarget.scrollTop = 0; }
+    const selectedCard = providerList?.querySelector?.(`[data-provider-id="${CSS.escape(selectedId)}"]`);
+    selectedCard?.scrollIntoView?.({ block:'nearest', inline:'nearest' });
 }
 function syncRecommendView(){
     if(settingsContent) settingsContent.hidden = recommendInlineOpen;
@@ -2376,7 +2395,7 @@ function renderProviderCard(item){
     const sortableClass = isFixedProvider(item) ? '' : 'provider-card-sortable';
     const subline = providerListSubline(item);
     return `
-        <button class="provider-card ${sortableClass} ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')"${providerDragAttrs(item)}>
+        <button class="provider-card ${sortableClass} ${active} ${stateClass}" type="button" data-provider-id="${escapeAttr(item.id)}" onclick="selectProvider('${escapeHtml(item.id)}')"${providerDragAttrs(item)}>
             <span class="provider-drag-gutter" aria-hidden="true">
                 <span class="provider-drag-handle"><i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i></span>
             </span>
@@ -3393,6 +3412,7 @@ function removeMsLora(index){
 }
 function selectProvider(id){
     if(isProviderTemporarilyHidden(providers.find(item => item.id === id))) return;
+    document.body.classList.remove('show-cli-mode');
     recommendInlineOpen = false;
     syncRecommendView();
     renderRecommendApi();
@@ -3401,6 +3421,7 @@ function selectProvider(id){
     renderEditor();
 }
 function addProvider(){
+    document.body.classList.remove('show-cli-mode');
     recommendInlineOpen = false;
     syncRecommendView();
     renderRecommendApi();
@@ -3415,6 +3436,7 @@ function addProvider(){
 async function addCliProvider(kind){
     const preset = CLI_PROVIDER_PRESETS[kind];
     if(!preset) return;
+    document.body.classList.add('show-cli-mode');
     recommendInlineOpen = false;
     syncRecommendView();
     renderRecommendApi();
@@ -3583,11 +3605,16 @@ function removeModel(kind, index){
 async function loadProviders(){
     setStatus(tr('api.loading'));
     try {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if(params.get('tab') === 'cli' || params.get('mode') === 'cli') pendingFocusCli = true;
+        } catch(e) {}
         const data = await fetch('/api/providers').then(r => r.json());
         providers = data.providers || [];
         selectedId = sortedProviders()[0]?.id || '';
         renderEditor();
-        openRecommendApi();
+        if(pendingFocusCli) focusCliSettings();
+        else openRecommendApi();
         setStatus('');
     } catch(err) {
         setStatus(tr('api.loadFailed'));
@@ -3712,6 +3739,7 @@ window.addEventListener('message', event => {
         if(recommendInlineOpen) renderRecommendApi();
         else renderEditor();
     }
+    if(event.data?.type === 'settings-focus-cli') focusCliSettings();
 });
 rhWorkflowEditorOverlay?.addEventListener('mousedown', event => {
     if(event.target === rhWorkflowEditorOverlay) closeRhWorkflowEditor();

@@ -17,29 +17,32 @@
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.6.1783393380"></script>
-    <script src="/static/js/theme.js?v=2026.07.6.1783393380"></script>
-    <script src="/static/js/i18n.js?v=2026.07.6.1783402972"></script>
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.6.1783405119">
-    <link rel="stylesheet" href="/static/css/settings.css?v=2026.07.6.1783407831">
+    <script src="/static/vendor/js/lucide.js?v=2026.07.6.1783517078"></script>
+    <script src="/static/js/theme.js?v=2026.07.6.1783517078"></script>
+    <script src="/static/js/i18n.js?v=2026.07.6.1783517078"></script>
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.6.1783517078">
+    <link rel="stylesheet" href="/static/css/settings.css?v=2026.07.8.settings-responsive">
 </head>
 <body>
     <div class="settings-shell">
         <header class="settings-top">
             <div class="settings-top-bar">
-                <h1 class="settings-title" data-i18n="settings.title">设置</h1>
+                <div class="settings-heading">
+                    <h1 class="settings-title" data-i18n="settings.title">设置</h1>
+                    <p class="settings-sub" data-i18n="settings.subtitle">统一管理 API、工作流、CLI 与项目信息。</p>
+                </div>
                 <div class="settings-top-end">
                     <nav class="settings-tabs" role="tablist" aria-label="Settings">
-                        <button class="settings-tab active" type="button" role="tab" data-tab="api" aria-selected="true">
+                        <button class="settings-tab active" type="button" role="tab" data-tab="api" aria-selected="true" aria-controls="settings-panel-api" tabindex="0">
                             <i data-lucide="link"></i><span data-i18n="settings.tabApi">API</span>
                         </button>
-                        <button class="settings-tab" type="button" role="tab" data-tab="workflow" aria-selected="false">
+                        <button class="settings-tab" type="button" role="tab" data-tab="workflow" aria-selected="false" aria-controls="settings-panel-workflow" tabindex="-1">
                             <i data-lucide="boxes"></i><span data-i18n="settings.tabWorkflow">工作流</span>
                         </button>
-                        <button class="settings-tab" type="button" role="tab" data-tab="cli" aria-selected="false">
+                        <button class="settings-tab" type="button" role="tab" data-tab="cli" aria-selected="false" aria-controls="settings-panel-cli" tabindex="-1">
                             <i data-lucide="terminal"></i><span data-i18n="settings.tabCli">CLI</span>
                         </button>
-                        <button class="settings-tab" type="button" role="tab" data-tab="about" aria-selected="false">
+                        <button class="settings-tab" type="button" role="tab" data-tab="about" aria-selected="false" aria-controls="settings-panel-about" tabindex="-1">
                             <i data-lucide="info"></i><span data-i18n="settings.tabAbout">关于</span>
                         </button>
                     </nav>
@@ -53,46 +56,82 @@
                     </div>
                 </div>
             </div>
-            <p class="settings-sub" data-i18n="settings.subtitle">统一管理 API、工作流、CLI 与项目信息。</p>
         </header>
 
         <div class="settings-body">
-            <section class="settings-panel active" data-panel="api" role="tabpanel">
+            <section class="settings-panel active is-loading" id="settings-panel-api" data-panel="api" role="tabpanel" aria-label="API">
                 <iframe id="settings-frame-api" title="API Settings" loading="lazy"></iframe>
             </section>
-            <section class="settings-panel" data-panel="workflow" role="tabpanel">
+            <section class="settings-panel" id="settings-panel-workflow" data-panel="workflow" role="tabpanel" aria-label="Workflow">
                 <iframe id="settings-frame-workflow" title="Workflow Settings" loading="lazy"></iframe>
             </section>
-            <section class="settings-panel" data-panel="cli" role="tabpanel">
+            <section class="settings-panel" id="settings-panel-cli" data-panel="cli" role="tabpanel" aria-label="CLI">
                 <iframe id="settings-frame-cli" title="CLI Settings" loading="lazy"></iframe>
             </section>
 
-            <section class="settings-panel" data-panel="about" role="tabpanel">
+            <section class="settings-panel" id="settings-panel-about" data-panel="about" role="tabpanel" aria-label="About">
                 <div class="settings-native">
-                    <div class="settings-about-hero">
-                        <h2>Infinite Canvas</h2>
-                        <p data-i18n="settings.aboutDesc">AI Studio 本地创作工作台，整合画布、在线生图与 ComfyUI 工作流。</p>
-                        <div class="settings-version-pill" id="settings-version-pill" data-i18n="settings.upToDate">已是最新</div>
-                        <div class="settings-row-actions">
-                            <span class="settings-version-pill" id="settings-local-version">v—</span>
-                            <span class="settings-version-pill" id="settings-remote-version" hidden>—</span>
-                        </div>
-                        <div class="settings-row-actions">
-                            <button class="settings-action-btn" id="settings-github-btn" type="button" data-i18n="common.project">项目主页</button>
-                            <button class="settings-action-btn" id="settings-check-btn" type="button" data-i18n="settings.checkUpdate">检测更新</button>
-                            <button class="settings-action-btn primary update-available" id="settings-update-btn" type="button" hidden data-i18n="update.oneClick">一键更新</button>
-                        </div>
-                    </div>
-                    <div class="settings-card">
-                        <div class="settings-card-title" data-i18n="settings.cliHintTitle">CLI 快捷入口</div>
-                        <p class="settings-card-desc" data-i18n="settings.cliHintDesc">即梦、GPT、Antigravity 等 CLI 配置集中在 CLI 标签页。</p>
-                        <button class="settings-action-btn" id="settings-open-api-cli" type="button" data-i18n="settings.openCliTab">打开 CLI 设置</button>
+                    <div class="settings-about-grid">
+                        <section class="settings-about-hero">
+                            <div class="settings-about-mark">
+                                <img src="/static/images/logo.png" alt="">
+                            </div>
+                            <div class="settings-about-main">
+                                <div class="settings-section-kicker" data-i18n="settings.localWorkspace">本地工作台</div>
+                                <h2>Infinite Canvas</h2>
+                                <p data-i18n="settings.aboutDesc">AI Studio 本地创作工作台，整合画布、在线生图与 ComfyUI 工作流。</p>
+                            </div>
+                        </section>
+
+                        <section class="settings-card">
+                            <div class="settings-card-head">
+                                <div>
+                                    <div class="settings-card-title" data-i18n="settings.versionStatus">版本状态</div>
+                                    <p class="settings-card-desc" data-i18n="settings.versionStatusDesc">检查项目版本，并在有更新时启动本地更新流程。</p>
+                                </div>
+                                <div class="settings-version-pill" id="settings-version-pill" data-i18n="settings.upToDate">已是最新</div>
+                            </div>
+                            <div class="settings-meta-list">
+                                <div class="settings-meta-row">
+                                    <span data-i18n="settings.currentVersion">当前版本</span>
+                                    <strong id="settings-local-version">v—</strong>
+                                </div>
+                                <div class="settings-meta-row" id="settings-remote-version-row" hidden>
+                                    <span data-i18n="settings.remoteVersion">最新版本</span>
+                                    <strong id="settings-remote-version">—</strong>
+                                </div>
+                            </div>
+                            <div class="settings-row-actions">
+                                <button class="settings-action-btn" id="settings-github-btn" type="button">
+                                    <i data-lucide="external-link"></i><span data-i18n="common.project">项目主页</span>
+                                </button>
+                                <button class="settings-action-btn" id="settings-check-btn" type="button">
+                                    <i data-lucide="refresh-cw"></i><span data-i18n="settings.checkUpdate">检测更新</span>
+                                </button>
+                                <button class="settings-action-btn primary update-available" id="settings-update-btn" type="button" hidden>
+                                    <i data-lucide="download"></i><span data-i18n="update.oneClick">一键更新</span>
+                                </button>
+                            </div>
+                        </section>
+
+                        <section class="settings-card">
+                            <div class="settings-card-head">
+                                <div>
+                                    <div class="settings-card-title" data-i18n="settings.cliHintTitle">CLI 快捷入口</div>
+                                    <p class="settings-card-desc" data-i18n="settings.cliHintDesc">即梦、GPT、Antigravity 等 CLI 配置集中在 CLI 标签页。</p>
+                                </div>
+                                <div class="settings-card-icon"><i data-lucide="terminal"></i></div>
+                            </div>
+                            <button class="settings-action-btn" id="settings-open-api-cli" type="button">
+                                <i data-lucide="arrow-right"></i><span data-i18n="settings.openCliTab">打开 CLI 设置</span>
+                            </button>
+                        </section>
                     </div>
                 </div>
             </section>
         </div>
     </div>
-    <script src="/static/js/settings.js?v=2026.07.6.1783407843"></script>
+    <script src="/static/js/settings.js?v=2026.07.8.settings-responsive"></script>
     <script>if(window.lucide) lucide.createIcons();</script>
 </body>
 </html>

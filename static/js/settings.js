@@ -1,13 +1,20 @@
 (function () {
     const TAB_IDS = ['api', 'workflow', 'cli', 'about'];
     const TAB_KEY = 'studio_settings_tab';
-    const IFRAME_VERSION = '2026.07.7.desktop-flat';
+    const IFRAME_VERSION = '2026.07.8.settings-responsive';
 
     let activeTab = 'api';
     let updateInfo = { version: '', remoteVersion: '', available: false };
 
     function tr(key, fallback) {
         return window.StudioI18n?.t?.(key) || fallback || key;
+    }
+
+    function setText(el, text) {
+        if (!el) return;
+        const label = el.querySelector('[data-i18n]');
+        if (label) label.textContent = text;
+        else el.textContent = text;
     }
 
     function normalizeTab(tab) {
@@ -25,9 +32,12 @@
             const on = btn.dataset.tab === tab;
             btn.classList.toggle('active', on);
             btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            btn.tabIndex = on ? 0 : -1;
         });
         document.querySelectorAll('.settings-panel').forEach(panel => {
-            panel.classList.toggle('active', panel.dataset.panel === tab);
+            const on = panel.dataset.panel === tab;
+            panel.classList.toggle('active', on);
+            panel.hidden = !on;
         });
         ensureIframe(tab);
         if (tab === 'cli') focusCliPanel();
@@ -43,10 +53,20 @@
         if (!id) return;
         const frame = document.getElementById(id);
         if (!frame || frame.src) return;
+        const panel = frame.closest('.settings-panel');
+        if (panel) {
+            panel.dataset.loadingText = tr('common.loading', '加载中...');
+            panel.classList.add('is-loading');
+        }
+        frame.addEventListener('load', () => {
+            panel?.classList.remove('is-loading');
+            syncThemeToFrame(frame);
+            syncLanguageToFrame(frame);
+        }, { once: true });
         const srcMap = {
             api: `/static/api-settings.html?v=${IFRAME_VERSION}`,
-            workflow: `/static/comfyui-settings.html?v=2026.07.7.desktop-flat`,
-            cli: `/static/api-settings.html?v=${IFRAME_VERSION}`
+            workflow: `/static/comfyui-settings.html?v=${IFRAME_VERSION}`,
+            cli: `/static/api-settings.html?tab=cli&v=${IFRAME_VERSION}`
         };
         frame.src = srcMap[tab] || srcMap.api;
     }
@@ -59,6 +79,25 @@
         };
         if (frame.contentWindow) send();
         else frame.addEventListener('load', send, { once: true });
+    }
+
+    function syncThemeToFrame(frame) {
+        const theme = window.StudioTheme?.get?.() || 'light';
+        try { frame?.contentWindow?.postMessage({ type: 'studio-theme', theme }, '*'); } catch (e) {}
+    }
+
+    function syncThemeToFrames() {
+        document.querySelectorAll('.settings-panel iframe').forEach(syncThemeToFrame);
+    }
+
+    function syncLanguageToFrame(frame) {
+        const lang = window.StudioI18n?.lang?.();
+        if (!lang) return;
+        try { frame?.contentWindow?.postMessage({ type: 'studio-lang', lang }, '*'); } catch (e) {}
+    }
+
+    function syncLanguageToFrames() {
+        document.querySelectorAll('.settings-panel iframe').forEach(syncLanguageToFrame);
     }
 
     function postParent(action, payload) {
@@ -119,16 +158,21 @@
     function bindAppearanceControls() {
         document.getElementById('settings-theme-toggle')?.addEventListener('click', toggleTheme);
         document.getElementById('settings-lang-toggle')?.addEventListener('click', toggleLanguage);
-        window.addEventListener('studio-theme-change', refreshToolbarIcons);
+        window.addEventListener('studio-theme-change', () => {
+            refreshToolbarIcons();
+            syncThemeToFrames();
+        });
         window.addEventListener('studio-lang-change', () => {
             refreshToolbarIcons();
             refreshAboutPanel();
+            syncLanguageToFrames();
         });
     }
 
     function refreshAboutPanel() {
         const localEl = document.getElementById('settings-local-version');
         const remoteEl = document.getElementById('settings-remote-version');
+        const remoteRow = document.getElementById('settings-remote-version-row');
         const pill = document.getElementById('settings-version-pill');
         const updateBtn = document.getElementById('settings-update-btn');
         const local = updateInfo.version || '—';
@@ -140,6 +184,7 @@
                 : tr('settings.checkingVersion', '检测中…');
             remoteEl.hidden = !remote && !updateInfo.available;
         }
+        if (remoteRow) remoteRow.hidden = !remote && !updateInfo.available;
         if (pill) {
             pill.classList.toggle('has-update', !!updateInfo.available);
             pill.textContent = updateInfo.available
@@ -148,10 +193,11 @@
         }
         if (updateBtn) {
             updateBtn.hidden = !updateInfo.available;
-            updateBtn.textContent = remote
+            setText(updateBtn, remote
                 ? tr('settings.updateTo', '更新到 {v}').replace('{v}', `v${String(remote).replace(/^v/i, '')}`)
-                : tr('update.oneClick', '一键更新');
+                : tr('update.oneClick', '一键更新'));
         }
+        if (window.lucide) window.lucide.createIcons();
     }
 
     function applyUpdateInfo(data) {
@@ -165,8 +211,21 @@
     }
 
     function initTabs() {
-        document.querySelectorAll('.settings-tab').forEach(btn => {
+        const tabs = Array.from(document.querySelectorAll('.settings-tab'));
+        tabs.forEach(btn => {
             btn.addEventListener('click', () => setTab(btn.dataset.tab));
+            btn.addEventListener('keydown', event => {
+                const current = tabs.indexOf(btn);
+                let next = -1;
+                if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (current + 1) % tabs.length;
+                if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+                if (event.key === 'Home') next = 0;
+                if (event.key === 'End') next = tabs.length - 1;
+                if (next < 0) return;
+                event.preventDefault();
+                tabs[next].focus();
+                setTab(tabs[next].dataset.tab);
+            });
         });
     }
 
@@ -199,12 +258,14 @@
         if (data.type === 'studio-theme' && window.StudioTheme) {
             window.StudioTheme.set(data.theme);
             refreshToolbarIcons();
+            syncThemeToFrames();
         }
         if (data.type === 'studio-lang') {
             window.StudioI18n?.set?.(data.lang);
             window.StudioI18n?.apply?.();
             refreshToolbarIcons();
             refreshAboutPanel();
+            syncLanguageToFrames();
         }
         if (data.type === 'studio-settings-info') applyUpdateInfo(data);
         if (data.type === 'studio-settings-set-tab') setTab(data.tab);

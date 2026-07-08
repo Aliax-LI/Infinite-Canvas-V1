@@ -311,3 +311,478 @@ html.studio-settings-embed .content {
         padding: 14px 16px 20px;
     }
 }
+
+/* Settings shell desktop pass: match the app's flat tool-panel density. */
+html.studio-settings-embed body {
+    font-family: var(--font-sans) !important;
+}
+
+html.studio-settings-embed .layout {
+    grid-template-columns: 236px minmax(0, 1fr) !important;
+    background: var(--bg) !important;
+}
+
+html.studio-settings-embed .sidebar {
+    padding: 14px 10px 18px 16px !important;
+    background: var(--bg) !important;
+}
+
+html.studio-settings-embed .content {
+    padding: 14px 18px 20px !important;
+    gap: 12px !important;
+}
+
+html.studio-settings-embed .side-card,
+html.studio-settings-embed .content-head,
+html.studio-settings-embed .graph-card,
+html.studio-settings-embed .node-card,
+html.studio-settings-embed .empty-state {
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .side-card {
+    padding: 12px !important;
+}
+
+html.studio-settings-embed .workflow-card {
+    min-height: 38px !important;
+}
+
+html.studio-settings-embed .graph-card {
+    padding: 16px !important;
+}
+
+@media (max-width: 900px) {
+    html.studio-settings-embed .layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    html.studio-settings-embed .sidebar {
+        padding: 12px 14px !important;
+    }
+
+    html.studio-settings-embed .content {
+        padding: 12px 14px 18px !important;
+    }
+}
+
+/* Final responsive workflow settings layout. */
+:root {
+    --workflow-list-width: clamp(236px, 15vw, 340px);
+    --workflow-content-max: 1680px;
+    --workflow-gutter: clamp(14px, 1.35vw, 28px);
+}
+
+html.studio-settings-embed,
+html.studio-settings-embed body {
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+html.studio-settings-embed .page,
+html.studio-settings-embed .wrap {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+html.studio-settings-embed .layout {
+    display: grid !important;
+    grid-template-columns: var(--workflow-list-width) minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+}
+
+html.studio-settings-embed .sidebar {
+    position: relative !important;
+    top: auto !important;
+    width: auto !important;
+    max-height: none !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding: var(--workflow-gutter) 10px var(--workflow-gutter) 16px !important;
+}
+
+html.studio-settings-embed .content {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: var(--workflow-gutter) !important;
+}
+
+html.studio-settings-embed .content > .content-head,
+html.studio-settings-embed .content > .graph-card,
+html.studio-settings-embed .content > .nodes-toggle,
+html.studio-settings-embed .content > .node-list,
+html.studio-settings-embed .content > .empty-state {
+    width: min(100%, var(--workflow-content-max)) !important;
+    max-width: var(--workflow-content-max) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+html.studio-settings-embed .graph-svg-wrap,
+html.studio-settings-embed .mini-canvas.large {
+    height: clamp(520px, 72vh, 900px) !important;
+}
+
+html.studio-settings-embed .input-row {
+    grid-template-columns: 36px minmax(160px, 1fr) minmax(120px, .45fr) minmax(140px, .55fr) !important;
+}
+
+@media (max-width: 980px) {
+    html.studio-settings-embed,
+    html.studio-settings-embed body {
+        overflow: auto !important;
+    }
+
+    html.studio-settings-embed .layout {
+        grid-template-columns: 1fr !important;
+        height: auto !important;
+        min-height: 100% !important;
+    }
+
+    html.studio-settings-embed .sidebar,
+    html.studio-settings-embed .content {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    html.studio-settings-embed .sidebar {
+        border-right: 0 !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    html.studio-settings-embed .input-row {
+        grid-template-columns: 32px minmax(0, 1fr) !important;
+    }
+}
+
+/* Unified settings form authority. Match API/CLI settings surfaces and dark mode tokens. */
+:root {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --soft: #f1f4f8;
+    --line: #e3e8f0;
+    --line-strong: #d4dce8;
+    --text: #111827;
+    --muted: #687386;
+    --faint: #94a3b8;
+    --accent: #1f2937;
+    --accent-contrast: #ffffff;
+}
+
+body.studio-theme-dark,
+html.studio-theme-dark body {
+    --bg: #0f141d;
+    --panel: #171d29;
+    --soft: #111722;
+    --line: #2a3444;
+    --line-strong: #3a4658;
+    --text: #e5e9f0;
+    --muted: #9aa6b8;
+    --faint: #6f7b8f;
+    --accent: #d8dee9;
+    --accent-contrast: #10141d;
+}
+
+html.studio-settings-embed,
+html.studio-settings-embed body,
+html.studio-settings-embed .page,
+html.studio-settings-embed .wrap,
+html.studio-settings-embed .layout {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+    font-family: var(--font-sans) !important;
+}
+
+html.studio-settings-embed .layout {
+    grid-template-columns: 236px minmax(0, 1fr) !important;
+    gap: 0 !important;
+    min-height: 100% !important;
+}
+
+html.studio-settings-embed .sidebar {
+    position: sticky !important;
+    top: 0 !important;
+    align-self: start !important;
+    max-height: 100vh !important;
+    padding: 14px 10px 18px 16px !important;
+    border: 0 !important;
+    border-right: 1px solid var(--line) !important;
+    background: var(--bg) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .content {
+    padding: 14px 18px 22px !important;
+    gap: 12px !important;
+}
+
+html.studio-settings-embed .side-card,
+html.studio-settings-embed .content-head,
+html.studio-settings-embed .graph-card,
+html.studio-settings-embed .node-card,
+html.studio-settings-embed .empty-state,
+html.studio-settings-embed .popup-panel,
+html.studio-settings-embed .run-result,
+html.studio-settings-embed .mini-card {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .side-card {
+    padding: 12px !important;
+}
+
+html.studio-settings-embed .content-head,
+html.studio-settings-embed .graph-card {
+    padding: 16px !important;
+}
+
+html.studio-settings-embed .side-title,
+html.studio-settings-embed .workflow-meta,
+html.studio-settings-embed .editor-sub,
+html.studio-settings-embed .preview-desc,
+html.studio-settings-embed .preview-empty,
+html.studio-settings-embed .graph-hint,
+html.studio-settings-embed .node-id,
+html.studio-settings-embed .node-stats,
+html.studio-settings-embed .input-orig,
+html.studio-settings-embed .pfield-label,
+html.studio-settings-embed .run-status {
+    color: var(--muted) !important;
+}
+
+html.studio-settings-embed .workflow-name,
+html.studio-settings-embed .editor-title,
+html.studio-settings-embed .preview-title,
+html.studio-settings-embed .node-class,
+html.studio-settings-embed .input-key,
+html.studio-settings-embed .empty-title {
+    color: var(--text) !important;
+}
+
+html.studio-settings-embed .workflow-card,
+html.studio-settings-embed .upload-btn {
+    position: relative !important;
+    min-height: 38px !important;
+    border: 1px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .workflow-card:hover,
+html.studio-settings-embed .upload-btn:hover {
+    border-color: transparent !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .workflow-card.active {
+    border-color: transparent !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: inset 2px 0 0 var(--accent) !important;
+}
+
+html.studio-settings-embed .workflow-icon,
+html.studio-settings-embed .empty-icon {
+    width: 30px !important;
+    height: 30px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: currentColor !important;
+}
+
+html.studio-settings-embed .workflow-card.active .workflow-icon,
+html.studio-settings-embed .workflow-card:hover .workflow-icon {
+    border-color: var(--line-strong) !important;
+    color: var(--text) !important;
+}
+
+html.studio-settings-embed .action-btn,
+html.studio-settings-embed .graph-ctrl-btn,
+html.studio-settings-embed .random-btn,
+html.studio-settings-embed .random-toggle,
+html.studio-settings-embed .nodes-toggle,
+html.studio-settings-embed .mini-tool,
+html.studio-settings-embed .popup-close,
+html.studio-settings-embed .opt-del {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--panel) !important;
+    color: var(--muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn:hover,
+html.studio-settings-embed .graph-ctrl-btn:hover,
+html.studio-settings-embed .random-btn:hover,
+html.studio-settings-embed .random-toggle:hover,
+html.studio-settings-embed .nodes-toggle:hover,
+html.studio-settings-embed .mini-tool:hover,
+html.studio-settings-embed .popup-close:hover,
+html.studio-settings-embed .opt-del:hover {
+    border-color: var(--line-strong) !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn.save-btn,
+html.studio-settings-embed .run-btn,
+html.studio-settings-embed .random-btn.active,
+html.studio-settings-embed .check-toggle.checked {
+    border-color: var(--accent) !important;
+    background: var(--accent) !important;
+    color: var(--accent-contrast) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn.save-btn:hover,
+html.studio-settings-embed .run-btn:hover {
+    opacity: .92 !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html.studio-settings-embed .action-btn.danger-btn {
+    border-color: rgba(239, 68, 68, .28) !important;
+    background: transparent !important;
+    color: #dc2626 !important;
+}
+
+html.studio-theme-dark body .action-btn.danger-btn {
+    border-color: rgba(248, 113, 113, .28) !important;
+    color: #fca5a5 !important;
+}
+
+html.studio-settings-embed .graph-svg-wrap,
+html.studio-settings-embed .mini-canvas,
+html.studio-settings-embed .input-row,
+html.studio-settings-embed .popup-head,
+html.studio-settings-embed .popup-body,
+html.studio-settings-embed .small-input,
+html.studio-settings-embed .small-select,
+html.studio-settings-embed .extras-row textarea,
+html.studio-settings-embed .dropdown-opt-row,
+html.studio-settings-embed .pfield-input,
+html.studio-settings-embed .pfield-textarea,
+html.studio-settings-embed .pfield-select,
+html.studio-settings-embed .pfield-image-drop,
+html.studio-settings-embed .mini-textarea,
+html.studio-settings-embed .mini-input,
+html.studio-settings-embed .mini-image-drop,
+html.studio-settings-embed .workspace-mode-tabs,
+html.studio-settings-embed .preview-empty,
+html.studio-settings-embed .graph-zoom-pill,
+html.studio-settings-embed .builtin-badge,
+html.studio-settings-embed .preview-pill {
+    border: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    background: var(--soft) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .small-input:focus,
+html.studio-settings-embed .small-select:focus,
+html.studio-settings-embed .pfield-input:focus,
+html.studio-settings-embed .pfield-textarea:focus,
+html.studio-settings-embed .pfield-select:focus,
+html.studio-settings-embed .mini-textarea:focus,
+html.studio-settings-embed .mini-input:focus,
+html.studio-settings-embed .workflow-title-input:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, .16) !important;
+}
+
+html.studio-settings-embed .workspace-mode-tabs button {
+    border-radius: 0 !important;
+    color: var(--muted) !important;
+}
+
+html.studio-settings-embed .workspace-mode-tabs button.active {
+    background: var(--panel) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+}
+
+html.studio-settings-embed .workflow-title-input {
+    color: var(--text) !important;
+    border-bottom-color: var(--line-strong) !important;
+}
+
+html.studio-theme-dark body .side-card,
+html.studio-theme-dark body .content-head,
+html.studio-theme-dark body .graph-card,
+html.studio-theme-dark body .node-card,
+html.studio-theme-dark body .empty-state,
+html.studio-theme-dark body .popup-panel,
+html.studio-theme-dark body .run-result,
+html.studio-theme-dark body .mini-card {
+    background: var(--panel) !important;
+    border-color: var(--line) !important;
+}
+
+html.studio-theme-dark body .graph-svg-wrap,
+html.studio-theme-dark body .mini-canvas,
+html.studio-theme-dark body .input-row,
+html.studio-theme-dark body .popup-head,
+html.studio-theme-dark body .small-input,
+html.studio-theme-dark body .small-select,
+html.studio-theme-dark body .pfield-input,
+html.studio-theme-dark body .pfield-textarea,
+html.studio-theme-dark body .pfield-select,
+html.studio-theme-dark body .mini-textarea,
+html.studio-theme-dark body .mini-input,
+html.studio-theme-dark body .mini-image-drop,
+html.studio-theme-dark body .workspace-mode-tabs {
+    background: var(--soft) !important;
+    border-color: var(--line-strong) !important;
+}
+
+@media (max-width: 900px) {
+    html.studio-settings-embed .layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    html.studio-settings-embed .sidebar {
+        position: static !important;
+        max-height: none !important;
+        padding: 12px 14px !important;
+        border-right: 0 !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    html.studio-settings-embed .content {
+        padding: 12px 14px 18px !important;
+    }
+}
