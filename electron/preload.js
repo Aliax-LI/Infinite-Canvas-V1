@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('infiniteCanvasDesktop', {
   isElectron: true,
   chooseFolder: () => ipcRenderer.invoke('desktop:choose-folder'),
   backendStatus: () => ipcRenderer.invoke('desktop:backend-status'),
+  openExternal: url => ipcRenderer.invoke('desktop:open-external', url),
   getPathForFile: file => {
     try {
       return webUtils.getPathForFile(file);

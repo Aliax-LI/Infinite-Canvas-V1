@@ -1,0 +1,709 @@
+@import url('/static/vendor/css/fonts.css');
+
+:root {
+    --settings-bg: #f7f7f8;
+    --settings-panel: #ffffff;
+    --settings-soft: #f1f4f8;
+    --settings-line: #e8e8ea;
+    --settings-line-strong: #dbe1ea;
+    --settings-text: #121212;
+    --settings-muted: #6b7280;
+    --settings-faint: #9ca3af;
+    --settings-accent: #111827;
+}
+
+html.studio-theme-dark,
+body.studio-theme-dark {
+    --settings-bg: #0f141d;
+    --settings-panel: #171d29;
+    --settings-soft: #111722;
+    --settings-line: #2a3444;
+    --settings-line-strong: #334155;
+    --settings-text: #e5e9f0;
+    --settings-muted: #8f9aab;
+    --settings-faint: #64748b;
+    --settings-accent: #d8dee9;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    background: var(--settings-bg);
+    color: var(--settings-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+button {
+    font-family: inherit;
+}
+
+.settings-shell {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    min-width: 0;
+    background: var(--settings-bg);
+}
+
+.settings-top {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    border-bottom: 1px solid var(--settings-line);
+    background: var(--settings-bg);
+}
+
+.settings-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-height: 64px;
+    padding: 0 24px;
+}
+
+.settings-heading {
+    flex: 0 0 220px;
+    min-width: 0;
+    padding: 0;
+}
+
+.settings-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 750;
+    line-height: 1.15;
+    letter-spacing: 0;
+}
+
+.settings-sub {
+    margin: 5px 0 0;
+    color: var(--settings-muted);
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.55;
+}
+
+.settings-top-end {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 12px;
+    min-width: 0;
+}
+
+.settings-tabs {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 4px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar { display: none; }
+
+.settings-tab {
+    width: auto;
+    min-height: 38px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--settings-muted);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: left;
+    cursor: pointer;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+
+.settings-tab:hover {
+    background: var(--settings-soft);
+    color: var(--settings-text);
+}
+
+.settings-tab.active {
+    background: var(--settings-accent);
+    border-color: var(--settings-accent);
+    color: var(--settings-bg);
+}
+
+html.studio-theme-dark .settings-tab.active,
+body.studio-theme-dark .settings-tab.active {
+    color: #10141d;
+}
+
+.settings-tab:focus-visible,
+.settings-icon-btn:focus-visible,
+.settings-action-btn:focus-visible {
+    outline: 2px solid rgba(96, 165, 250, .55);
+    outline-offset: 2px;
+}
+
+.settings-tab svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+.settings-top-actions {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    width: 76px;
+    padding: 0;
+    margin: 0;
+}
+
+.settings-icon-btn {
+    height: 34px;
+    min-width: 0;
+    padding: 0;
+    border: 1px solid var(--settings-line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--settings-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color .14s ease, background .14s ease, border-color .14s ease;
+}
+
+.settings-icon-btn:hover {
+    color: var(--settings-text);
+    background: var(--settings-soft);
+    border-color: var(--settings-line-strong);
+}
+
+.settings-icon-btn svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+.settings-lang-mark {
+    font-size: 11px;
+    font-weight: 850;
+    line-height: 1;
+}
+
+.settings-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    position: relative;
+    background: var(--settings-bg);
+}
+
+.settings-panel {
+    position: absolute;
+    inset: 0;
+    display: none;
+    overflow: hidden;
+    background: var(--settings-bg);
+}
+
+.settings-panel.active {
+    display: block;
+}
+
+.settings-panel iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    border: none;
+    background: var(--settings-bg);
+}
+
+.settings-panel.is-loading::after {
+    content: attr(data-loading-text);
+    position: absolute;
+    left: 24px;
+    top: 18px;
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 10px;
+    border: 1px solid var(--settings-line);
+    background: var(--settings-panel);
+    color: var(--settings-muted);
+    font-size: 11px;
+    font-weight: 750;
+    pointer-events: none;
+}
+
+.settings-native {
+    height: 100%;
+    overflow: auto;
+    padding: 18px 24px 28px;
+}
+
+.settings-about-grid {
+    width: min(880px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+}
+
+.settings-about-hero,
+.settings-card {
+    border: 1px solid var(--settings-line);
+    border-radius: 0;
+    background: var(--settings-panel);
+}
+
+.settings-about-hero {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+    padding: 16px 18px;
+}
+
+.settings-about-mark {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--settings-line);
+    background: var(--settings-soft);
+}
+
+.settings-about-mark img {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+    display: block;
+}
+
+.settings-about-main {
+    min-width: 0;
+}
+
+.settings-section-kicker {
+    margin-bottom: 5px;
+    color: var(--settings-faint);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.settings-about-hero h2 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: 0;
+}
+
+.settings-about-hero p {
+    margin: 7px 0 0;
+    color: var(--settings-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.settings-card {
+    padding: 16px 18px;
+}
+
+.settings-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.settings-card-title {
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.settings-card-desc {
+    margin: 5px 0 0;
+    color: var(--settings-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.settings-card-icon {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--settings-line);
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--settings-muted);
+    flex: 0 0 auto;
+    background: var(--settings-soft);
+}
+
+.settings-card-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.settings-meta-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    border: 1px solid var(--settings-line);
+    background: var(--settings-soft);
+}
+
+.settings-meta-row {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--settings-line);
+    color: var(--settings-muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.settings-meta-row:last-child {
+    border-bottom: 0;
+}
+
+.settings-meta-row strong {
+    color: var(--settings-text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 750;
+}
+
+.settings-version-pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 9px;
+    border-radius: 0;
+    border: 1px solid var(--settings-line);
+    background: var(--settings-soft);
+    color: var(--settings-muted);
+    font-size: 10.5px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.settings-version-pill.has-update {
+    border-color: rgba(34, 197, 94, .5);
+    color: #16a34a;
+    background: rgba(34, 197, 94, .08);
+}
+
+.settings-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.settings-action-btn {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 12px;
+    border-radius: 0;
+    border: 1px solid var(--settings-line);
+    background: transparent;
+    color: var(--settings-text);
+    font-size: 11.5px;
+    font-weight: 750;
+    cursor: pointer;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+
+.settings-action-btn:hover {
+    background: var(--settings-soft);
+    border-color: var(--settings-line-strong);
+}
+
+.settings-action-btn svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
+.settings-action-btn.primary {
+    background: var(--settings-accent);
+    color: var(--settings-bg);
+    border-color: var(--settings-accent);
+}
+
+html.studio-theme-dark .settings-action-btn.primary,
+body.studio-theme-dark .settings-action-btn.primary {
+    color: #10141d;
+}
+
+.settings-action-btn.primary:hover {
+    opacity: .92;
+}
+
+.settings-action-btn.update-available {
+    border-color: rgba(34, 197, 94, .5);
+    color: #16a34a;
+}
+
+.settings-action-btn.update-available.primary {
+    color: var(--settings-bg);
+    border-color: var(--settings-accent);
+}
+
+@media (max-width: 820px) {
+    .settings-top {
+        flex: 0 0 auto;
+        width: 100%;
+        min-width: 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--settings-line);
+    }
+
+    .settings-top-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px 14px 10px;
+    }
+
+    .settings-heading {
+        flex-basis: auto;
+        padding: 0 88px 0 2px;
+    }
+
+    .settings-top-end {
+        gap: 8px;
+    }
+
+    .settings-tabs {
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 2px;
+    }
+
+    .settings-tab {
+        width: auto;
+        flex: 0 0 auto;
+        min-height: 36px;
+        padding: 0 10px;
+    }
+
+    .settings-top-actions {
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        width: 76px;
+        padding: 0;
+        margin: 0;
+        border-top: 0;
+    }
+
+    .settings-native {
+        padding: 14px 16px 24px;
+    }
+}
+
+@media (max-width: 520px) {
+    .settings-about-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-card-head {
+        flex-direction: column;
+    }
+
+    .settings-row-actions,
+    .settings-action-btn {
+        width: 100%;
+    }
+}
+
+/* Unified settings shell authority. Keep the outer tabs, native about panel and iframes aligned with form pages. */
+:root {
+    --settings-bg: #f7f7f8;
+    --settings-panel: #ffffff;
+    --settings-soft: #f1f4f8;
+    --settings-line: #e3e8f0;
+    --settings-line-strong: #d4dce8;
+    --settings-text: #111827;
+    --settings-muted: #687386;
+    --settings-faint: #94a3b8;
+    --settings-accent: #1f2937;
+    --settings-accent-contrast: #ffffff;
+}
+
+html.studio-theme-dark,
+body.studio-theme-dark {
+    --settings-bg: #0f141d;
+    --settings-panel: #171d29;
+    --settings-soft: #111722;
+    --settings-line: #2a3444;
+    --settings-line-strong: #3a4658;
+    --settings-text: #e5e9f0;
+    --settings-muted: #9aa6b8;
+    --settings-faint: #6f7b8f;
+    --settings-accent: #d8dee9;
+    --settings-accent-contrast: #10141d;
+}
+
+html,
+body,
+.settings-shell,
+.settings-top,
+.settings-body,
+.settings-panel,
+.settings-panel iframe {
+    background: var(--settings-bg) !important;
+    color: var(--settings-text) !important;
+}
+
+.settings-tab,
+.settings-icon-btn,
+.settings-action-btn,
+.settings-card-icon,
+.settings-version-pill {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.settings-tab.active,
+.settings-action-btn.primary {
+    background: var(--settings-accent) !important;
+    border-color: var(--settings-accent) !important;
+    color: var(--settings-accent-contrast) !important;
+}
+
+.settings-tab:hover,
+.settings-icon-btn:hover,
+.settings-action-btn:hover {
+    background: var(--settings-soft) !important;
+    border-color: var(--settings-line-strong) !important;
+    color: var(--settings-text) !important;
+}
+
+.settings-tab.active:hover,
+.settings-action-btn.primary:hover {
+    background: var(--settings-accent) !important;
+    border-color: var(--settings-accent) !important;
+    color: var(--settings-accent-contrast) !important;
+    opacity: .92;
+}
+
+.settings-about-hero,
+.settings-card,
+.settings-meta-list,
+.settings-about-mark,
+.settings-panel.is-loading::after {
+    border-color: var(--settings-line) !important;
+    border-radius: 0 !important;
+    background: var(--settings-panel) !important;
+    color: var(--settings-text) !important;
+    box-shadow: none !important;
+}
+
+.settings-meta-list,
+.settings-about-mark,
+.settings-card-icon,
+.settings-version-pill {
+    background: var(--settings-soft) !important;
+}
+
+.settings-sub,
+.settings-card-desc,
+.settings-meta-row,
+.settings-version-pill,
+.settings-section-kicker {
+    color: var(--settings-muted) !important;
+}
+
+/* Final responsive shell layout: native settings panels use the same wide work surface. */
+:root {
+    --settings-shell-gutter: clamp(16px, 1.5vw, 32px);
+    --settings-shell-content-max: 1480px;
+}
+
+.settings-native {
+    padding: var(--settings-shell-gutter) !important;
+}
+
+.settings-about-grid {
+    width: min(100%, var(--settings-shell-content-max)) !important;
+    max-width: var(--settings-shell-content-max) !important;
+    margin: 0 auto 0 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)) !important;
+    gap: 14px !important;
+}
+
+.settings-about-hero {
+    grid-column: 1 / -1 !important;
+}
+
+.settings-card {
+    min-width: 0 !important;
+}
+
+.settings-meta-list {
+    width: 100% !important;
+}
+
+@media (min-width: 1800px) {
+    :root {
+        --settings-shell-content-max: 1680px;
+    }
+}
+
+@media (max-width: 760px) {
+    .settings-top-bar {
+        min-height: 0 !important;
+    }
+
+    .settings-heading {
+        padding-right: 92px !important;
+    }
+
+    .settings-top-end {
+        min-width: 0 !important;
+    }
+
+    .settings-tabs {
+        justify-content: flex-start !important;
+    }
+}

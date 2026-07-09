@@ -2,11 +2,26 @@
   "name": "infinite-canvas-desktop",
   "version": "2026.07.6",
   "private": true,
+  "workspaces": [
+    "frontend"
+  ],
   "description": "无限画布桌面应用",
   "main": "electron/main.js",
   "scripts": {
     "desktop": "electron .",
     "electron": "electron .",
+    "dev": "concurrently -k \"npm run dev:frontend\" \"npm run dev:electron\"",
+    "dev:backend": "python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 3000",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:electron": "wait-on http://127.0.0.1:5173 && USE_VITE=1 electron .",
+    "build:frontend": "npm run build -w frontend",
+    "build:desktop": "npm run build:frontend && npm run dist",
+    "test": "npm run test:all",
+    "test:unit": "npm run test -w frontend && pytest backend/tests/unit -q",
+    "test:integration": "pytest backend/tests/integration -q",
+    "test:e2e": "playwright test",
+    "test:security": "bandit -r backend -x backend/tests && npm audit --registry=https://registry.npmjs.org --audit-level=high",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:security",
     "pack": "npm run prebuild:desktop && electron-builder --dir",
     "dist": "npm run prebuild:desktop && electron-builder",
     "dist:mac": "npm run prebuild:desktop && electron-builder --mac dmg",
@@ -14,8 +29,11 @@
     "prebuild:desktop": "node scripts/write-desktop-build-id.js"
   },
   "devDependencies": {
-    "electron": "^37.2.0",
-    "electron-builder": "^26.0.12"
+    "@playwright/test": "^1.54.1",
+    "concurrently": "^9.2.0",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.0.12",
+    "wait-on": "^8.0.3"
   },
   "build": {
     "appId": "com.infinitecanvas.desktop",
@@ -36,24 +54,18 @@
         "from": ".",
         "to": "app-source",
         "filter": [
-          "main.py",
+          "backend/**",
+          "frontend/dist/**",
+          "pyproject.toml",
           "requirements.txt",
           "VERSION",
           "DESKTOP_BUILD_ID",
-          "README.md",
           "LICENSE",
-          "static/**",
           "workflows/**",
           "data/**",
           "API/**",
           "CLI/**",
           "tools/**",
-          "mac-启动服务.command",
-          "mac-启动服务.sh",
-          "mac-安装依赖.sh",
-          "mac-修复权限.command",
-          "run.bat",
-          "安装依赖.bat",
           "!node_modules/**",
           "!dist-electron/**",
           "!python/**",
@@ -84,7 +96,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "无限画布",
       "uninstallDisplayName": "无限画布",
-      "installerLanguages": ["zh_CN"],
+      "installerLanguages": [
+        "zh_CN"
+      ],
       "language": "2052"
     },
     "dmg": {

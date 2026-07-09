@@ -116,6 +116,10 @@ function readGithubRepoUrl(mainPyPath) {
   return match ? match[1] : '';
 }
 
+function hasMigratedBackend(appDir) {
+  return fs.existsSync(path.join(appDir, 'backend', 'main.py'));
+}
+
 async function ensurePackagedRuntime() {
   if (!app.isPackaged) return runtimeSourceDir();
   const bundled = bundledSourceDir();
@@ -125,8 +129,9 @@ async function ensurePackagedRuntime() {
   const bundledBuildId = readTextIfExists(path.join(bundled, 'DESKTOP_BUILD_ID'));
   const runtimeBuildId = readTextIfExists(path.join(runtime, 'DESKTOP_BUILD_ID'));
   const runtimeMain = path.join(runtime, 'main.py');
+  const runtimeBackendMain = path.join(runtime, 'backend', 'main.py');
   const bundledMain = path.join(bundled, 'main.py');
-  const firstInstall = !fs.existsSync(runtimeMain);
+  const firstInstall = !fs.existsSync(runtimeMain) && !fs.existsSync(runtimeBackendMain);
   const bundledRepo = readGithubRepoUrl(bundledMain);
   const runtimeRepo = readGithubRepoUrl(runtimeMain);
   const repoChanged = !!(bundledRepo && runtimeRepo && bundledRepo !== runtimeRepo);
@@ -306,7 +311,11 @@ function trySpawnPython(command, appDir, port) {
     PYTHONUNBUFFERED: '1',
     PATH: expandCliPath(process.env.PATH)
   };
-  const args = command === 'py' ? ['-3', 'main.py'] : ['main.py'];
+  const migratedArgs = ['-m', 'uvicorn', 'backend.main:app', '--host', HOST, '--port', String(port)];
+  const legacyArgs = ['main.py'];
+  const args = command === 'py'
+    ? ['-3', ...(hasMigratedBackend(appDir) ? migratedArgs : legacyArgs)]
+    : (hasMigratedBackend(appDir) ? migratedArgs : legacyArgs);
   const child = spawn(command, args, {
     cwd: appDir,
     env,
@@ -314,6 +323,17 @@ function trySpawnPython(command, appDir, port) {
     windowsHide: true
   });
   return child;
+}
+
+function getAppUrl(port) {
+  const useVite = !app.isPackaged && process.env.USE_VITE === '1';
+  if (useVite) return 'http://127.0.0.1:5173';
+  return `http://${HOST}:${port}/`;
+}
+
+function isAllowedAppNavigation(url, port) {
+  const appUrl = getAppUrl(port);
+  return url.startsWith(appUrl) || url.startsWith(`http://${HOST}:${port}/`);
 }
 
 function attachBackendLogging(child) {
@@ -361,7 +381,7 @@ async function startBackend(appDir, port) {
               await startBackend(appDir, port);
               await waitForBackend(port);
               isRestartingBackend = false;
-              mainWindow?.loadURL(`http://${HOST}:${port}/`);
+              mainWindow?.loadURL(getAppUrl(port));
             } catch (err) {
               isRestartingBackend = false;
               showBackendError(err);
@@ -504,17 +524,17 @@ function createWindow(port) {
     startupInProgress = false;
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(`http://${HOST}:${port}/`)) return { action: 'allow' };
+    if (isAllowedAppNavigation(url, port)) return { action: 'allow' };
     shell.openExternal(url);
     return { action: 'deny' };
   });
   mainWindow.webContents.on('will-navigate', event => {
     const url = event.url || '';
-    if (url.startsWith(`http://${HOST}:${port}/`)) return;
+    if (isAllowedAppNavigation(url, port)) return;
     event.preventDefault();
     shell.openExternal(url);
   });
-  mainWindow.loadURL(`http://${HOST}:${port}/`);
+  mainWindow.loadURL(getAppUrl(port));
 }
 
 function stopBackend() {
@@ -606,6 +626,12 @@ ipcMain.handle('desktop:backend-status', async () => ({
   restarting: isRestartingBackend,
   running: !!backendProcess
 }));
+
+ipcMain.handle('desktop:open-external', async (_event, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
+  await shell.openExternal(url);
+  return true;
+});
 
 app.whenReady().then(async () => {
   while (true) {

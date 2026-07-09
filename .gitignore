@@ -6,6 +6,8 @@ packages/
 # Electron build output
 dist-electron/
 .electron-builder/
+frontend/dist/
+test-results/
 
 # Python bytecode / cache
 __pycache__/

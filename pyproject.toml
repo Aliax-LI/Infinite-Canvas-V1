@@ -1,0 +1,39 @@
+[project]
+name = "infinite-canvas-backend"
+version = "2026.7.6"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "requests",
+  "pydantic",
+  "python-multipart",
+  "httpx",
+  "pillow",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-asyncio",
+  "bandit",
+  "ruff",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.bandit]
+exclude_dirs = ["backend/tests"]
