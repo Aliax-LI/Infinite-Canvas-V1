@@ -1,0 +1,31 @@
+{
+  "title": "GPT Chat",
+  "newConversation": "New Chat",
+  "new": "NEW",
+  "history": "HISTORY",
+  "historyTitle": "Conversations",
+  "noHistory": "No History",
+  "inputPlaceholder": "Type a message. Enter to send...",
+  "send": "Send",
+  "deleteTitle": "Delete chat",
+  "deleteConfirm": "Delete this conversation?",
+  "ready": "READY",
+  "generated": "Done",
+  "generatingImage": "Generating image...",
+  "agentWorking": "Choosing the right tool...",
+  "requestFailed": "Request failed",
+  "chatMode": "Chat",
+  "agentMode": "Agent",
+  "imageMode": "Image",
+  "resolution": "Resolution",
+  "modes": {
+    "chat": "Chat",
+    "agent": "Agent",
+    "image": "Image"
+  },
+  "newChat": "New Chat",
+  "systemPrompt": "System prompt",
+  "model": "Model",
+  "attachments": "Attachments",
+  "selectConversation": "Select or create a conversation"
+}

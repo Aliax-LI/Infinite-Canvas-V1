@@ -1,0 +1,19 @@
+{
+  "title": "custom/image_z_image_turbo",
+  "fields": [
+    {
+      "id": "57_27_text",
+      "node": "57:27",
+      "input": "text",
+      "name": "text",
+      "type": "textarea",
+      "default": "Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up. ",
+      "min": null,
+      "max": null,
+      "step": null,
+      "options": [],
+      "random_enabled": false
+    }
+  ],
+  "mini_cards": {}
+}

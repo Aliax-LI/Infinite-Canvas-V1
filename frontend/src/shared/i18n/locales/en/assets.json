@@ -1,0 +1,19 @@
+{
+  "title": "Asset Manager",
+  "tabs": {
+    "assets": "Images",
+    "workflows": "Workflows",
+    "prompts": "Prompts",
+    "canvasAssets": "Canvas Assets",
+    "localMedia": "Local Media"
+  },
+  "actions": {
+    "upload": "Upload",
+    "delete": "Delete",
+    "move": "Move",
+    "search": "Search",
+    "caption": "AI Caption",
+    "import": "Import"
+  },
+  "empty": "No assets yet"
+}

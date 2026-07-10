@@ -1,0 +1,19 @@
+{
+  "title": "素材管理",
+  "tabs": {
+    "assets": "图片资产",
+    "workflows": "工作流",
+    "prompts": "提示词",
+    "canvasAssets": "画布资产",
+    "localMedia": "本地素材"
+  },
+  "actions": {
+    "upload": "上传",
+    "delete": "删除",
+    "move": "移动",
+    "search": "搜索",
+    "caption": "AI 描述",
+    "import": "导入"
+  },
+  "empty": "暂无素材"
+}

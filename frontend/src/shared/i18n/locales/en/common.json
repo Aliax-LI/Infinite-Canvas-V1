@@ -1,0 +1,18 @@
+{
+  "appName": "Infinite Canvas",
+  "loading": "Loading...",
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "restore": "Restore",
+  "close": "Close",
+  "confirm": "Confirm",
+  "back": "Back",
+  "nav": {
+    "canvas": "Canvas",
+    "settings": "Settings",
+    "assets": "Assets",
+    "chat": "Chat",
+    "tools": "Tools"
+  }
+}

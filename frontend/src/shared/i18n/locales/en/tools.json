@@ -1,0 +1,11 @@
+{
+  "title": "Toolbox",
+  "subtitle": "Local ComfyUI tools and assets in one hub.",
+  "textToImageDesc": "Local text-to-image generation",
+  "enhanceDesc": "Upscale and detail refinement",
+  "imageEditDesc": "Local editing with Klein workflow",
+  "angleDesc": "Camera angle and perspective control",
+  "assetsDesc": "Manage images and canvas assets",
+  "tagLocal": "Local",
+  "tagLibrary": "Library"
+}

@@ -10,12 +10,12 @@ def test_app_info_exposes_desktop_metadata(client):
 
 
 def test_check_update_uses_github_release_shape(client, monkeypatch):
-    from backend import main
+    from backend.services import versioning
 
-    monkeypatch.setattr(main, "current_app_version", lambda: "2026.07.6")
-    monkeypatch.setattr(main, "current_desktop_build_id", lambda: "test-build")
+    monkeypatch.setattr(versioning, "current_app_version", lambda: "2026.07.6")
+    monkeypatch.setattr(versioning, "current_desktop_build_id", lambda: "test-build")
     monkeypatch.setattr(
-        main,
+        versioning,
         "fetch_github_latest_release",
         lambda timeout=5.0: {
             "ok": True,
@@ -35,6 +35,19 @@ def test_check_update_uses_github_release_shape(client, monkeypatch):
     assert payload["latest"]["release_url"].startswith("https://github.com/")
     assert payload["update_available"] is True
     assert payload["desktop_build_id"] == "test-build"
+
+
+def test_check_update_force_update_in_electron_test_mode(client, monkeypatch):
+    monkeypatch.setenv("INFINITE_CANVAS_TEST", "1")
+    monkeypatch.setenv("INFINITE_CANVAS_TEST_FORCE_UPDATE", "1")
+
+    response = client.get("/api/check-update")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["update_available"] is True
+    assert payload["latest"]["version"] == "2099.01.1"
+    assert payload["latest"]["release_notes"] == "- electron parity test"
 
 
 def test_removed_hot_update_endpoints_return_404(client):

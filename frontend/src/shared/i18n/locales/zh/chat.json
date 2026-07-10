@@ -1,0 +1,31 @@
+{
+  "title": "GPT 对话",
+  "newConversation": "新对话",
+  "new": "新建",
+  "history": "历史",
+  "historyTitle": "对话列表",
+  "noHistory": "暂无历史",
+  "inputPlaceholder": "输入消息，Enter 发送...",
+  "send": "发送",
+  "deleteTitle": "删除对话",
+  "deleteConfirm": "删除这条历史对话？",
+  "ready": "就绪",
+  "generated": "生成完成",
+  "generatingImage": "正在生成图片...",
+  "agentWorking": "正在判断并调用合适的工具...",
+  "requestFailed": "请求失败",
+  "chatMode": "聊天",
+  "agentMode": "Agent",
+  "imageMode": "生图",
+  "modes": {
+    "chat": "聊天",
+    "agent": "Agent",
+    "image": "生图"
+  },
+  "newChat": "新建对话",
+  "systemPrompt": "System prompt",
+  "model": "模型",
+  "attachments": "附件",
+  "selectConversation": "选择或新建对话",
+  "resolution": "分辨率"
+}

@@ -27,6 +27,11 @@ const APP_NAME = '无限画布';
 const DEFAULT_PORT = 3000;
 const HOST = '127.0.0.1';
 const BACKEND_READY_TIMEOUT_MS = 90000;
+const IS_TEST = process.env.INFINITE_CANVAS_TEST === '1';
+
+if (IS_TEST && process.env.INFINITE_CANVAS_TEST_USER_DATA) {
+  app.setPath('userData', path.resolve(process.env.INFINITE_CANVAS_TEST_USER_DATA));
+}
 
 let mainWindow = null;
 let setupWindow = null;
@@ -166,12 +171,14 @@ function assetFileUrl(...segments) {
 
 function windowIconPath() {
   const candidates = [
+    path.join(projectRoot(), 'frontend', 'public', 'images', 'logo.png'),
     assetFilePath('images', 'logo.png'),
     path.join(projectRoot(), 'build', 'icon.png'),
     path.join(projectRoot(), 'build', 'icon.icns')
   ];
   if (app.isPackaged) {
     candidates.unshift(
+      path.join(process.resourcesPath, 'app-source', 'frontend', 'public', 'images', 'logo.png'),
       path.join(process.resourcesPath, 'app-source', 'static', 'images', 'logo.png')
     );
   }
@@ -467,8 +474,8 @@ async function runStartup() {
   setupAppDir = appDir;
   const userData = app.getPath('userData');
   const isDev = !app.isPackaged;
-  const needDeps = await needsDependencySetup(appDir, userData, { isDev });
-  const needCli = needsCliSetup(userData);
+  const needDeps = IS_TEST ? false : await needsDependencySetup(appDir, userData, { isDev });
+  const needCli = IS_TEST ? false : needsCliSetup(userData);
 
   if (needDeps || needCli) {
     await createSetupWindow();
@@ -477,11 +484,13 @@ async function runStartup() {
     }
   }
 
-  activePythonCommand = await ensureDependencies(appDir, userData, {
-    isDev,
-    onStatus: sendSetupStatus,
-    onOutput: sendSetupProgress
-  });
+  activePythonCommand = IS_TEST
+    ? (process.env.INFINITE_CANVAS_PYTHON || (process.platform === 'win32' ? 'python' : 'python3'))
+    : await ensureDependencies(appDir, userData, {
+        isDev,
+        onStatus: sendSetupStatus,
+        onOutput: sendSetupProgress
+      });
 
   if (needCli && setupWindow) {
     sendSetupPhase('cli');

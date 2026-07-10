@@ -1,0 +1,11 @@
+{
+  "title": "工具箱",
+  "subtitle": "本地 ComfyUI 工具与素材管理，集中入口、按需打开。",
+  "textToImageDesc": "本地文生图与提示词创作",
+  "enhanceDesc": "超分与细节修复",
+  "imageEditDesc": "局部编辑与 Klein 流程",
+  "angleDesc": "相机视角与角度生成",
+  "assetsDesc": "管理图片与画布素材",
+  "tagLocal": "本地",
+  "tagLibrary": "资源"
+}
