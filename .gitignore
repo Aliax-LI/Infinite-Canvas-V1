@@ -8,7 +8,7 @@ dist-electron/
 .electron-builder/
 frontend/dist/
 test-results/
-
+.audit/
 # Python bytecode / cache
 __pycache__/
 *.py[cod]
@@ -27,7 +27,7 @@ Desktop.ini
 .idea/
 .vscode/
 .cursor/
-
+.codex/
 # App icons (iconset is intermediate; keep build/icon.png & build/icon.icns)
 build/icon.iconset/
 
