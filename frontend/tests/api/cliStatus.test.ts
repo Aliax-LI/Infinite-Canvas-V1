@@ -3,6 +3,7 @@ import {
   normalizeCodexCliStatus,
   normalizeGeminiCliStatus,
   normalizeJimengCliStatus,
+  parseCliVersionDisplay,
 } from "../../src/shared/api/cliStatus";
 
 describe("CLI status contract", () => {
@@ -19,7 +20,11 @@ describe("CLI status contract", () => {
       label: "已安装",
       installed: true,
       ok: true,
-      detail: "0.42.0 · /usr/local/bin/codex · OpenAI Codex CLI 已安装。",
+      version: "0.42.0",
+      path: "/usr/local/bin/codex",
+      message: "OpenAI Codex CLI 已安装。",
+      helper: { label: "GPT Image 2 helper 已安装", installed: true },
+      detail: "0.42.0 · /usr/local/bin/codex · GPT Image 2 helper 已安装 · OpenAI Codex CLI 已安装。",
       image2HelperInstalled: true,
     });
   });
@@ -87,6 +92,14 @@ describe("CLI status contract", () => {
       installed: false,
       ok: false,
     });
+  });
+
+  it("parses combined cli version strings", () => {
+    expect(parseCliVersionDisplay("codex-cli 0.134.0")).toEqual({
+      binary: "codex-cli",
+      semver: "0.134.0",
+    });
+    expect(parseCliVersionDisplay("0.28.0")).toEqual({ semver: "0.28.0" });
   });
 
   it("surfaces jimeng version warning when version_ok is false", () => {

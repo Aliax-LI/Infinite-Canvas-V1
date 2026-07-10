@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QrCode, RefreshCw, Terminal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../shared/api/client";
 import { formatCliActionMessage } from "../../../shared/api/cliFormat";
 import { fetchCliStatus, type CliStatusView } from "../../../shared/api/cliStatus";
 import { useStatusToast } from "../../../shared/hooks/useStatusToast";
 import { CliHelpDialog } from "./CliHelpDialog";
+import { CliStatusInfo } from "./CliStatusInfo";
 
 interface CliPanel {
   id: string;
@@ -85,18 +86,49 @@ function actionBtnClass(tone?: CliPanel["extra"][0]["tone"]) {
   return "studio-action-btn";
 }
 
+const CLI_DETECT_MIN_MS = 500;
+
 function CliPanelCard({ panel }: { panel: CliPanel }) {
   const queryClient = useQueryClient();
   const [helpOpen, setHelpOpen] = useState(false);
   const [creditText, setCreditText] = useState("");
   const [loginBox, setLoginBox] = useState<JimengLoginState | null>(null);
   const [loginPolling, setLoginPolling] = useState(false);
+  const [detectHoldBusy, setDetectHoldBusy] = useState(false);
+  const detectHoldTimerRef = useRef<number | null>(null);
   const { statusText: actionMsg, setStatusText: setActionMsg } = useStatusToast(8000);
 
-  const { data: status, isLoading } = useQuery({
+  const { data: status, isLoading, refetch } = useQuery({
     queryKey: ["cli-status", panel.id],
     queryFn: () => fetchCliStatus(panel.id, panel.statusPath, api.get),
+    staleTime: 0,
   });
+
+  const detecting = isLoading || detectHoldBusy;
+
+  useEffect(() => {
+    return () => {
+      if (detectHoldTimerRef.current !== null) {
+        window.clearTimeout(detectHoldTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDetect = () => {
+    if (detectHoldBusy) return;
+    const startedAt = Date.now();
+    setDetectHoldBusy(true);
+    void refetch().finally(() => {
+      const remaining = CLI_DETECT_MIN_MS - (Date.now() - startedAt);
+      if (detectHoldTimerRef.current !== null) {
+        window.clearTimeout(detectHoldTimerRef.current);
+      }
+      detectHoldTimerRef.current = window.setTimeout(() => {
+        setDetectHoldBusy(false);
+        detectHoldTimerRef.current = null;
+      }, Math.max(0, remaining));
+    });
+  };
 
   useEffect(() => {
     if (panel.id !== "jimeng") return;
@@ -191,12 +223,12 @@ function CliPanelCard({ panel }: { panel: CliPanel }) {
           <div className="studio-cli-title">{panel.title}</div>
           <div className="studio-cli-desc">{panel.description}</div>
         </div>
-        <span className={statusPillClass(isLoading ? null : (status?.ok ?? null))} data-testid={`cli-status-${panel.id}`}>
-          {isLoading ? "检测中..." : status?.label ?? "—"}
+        <span className={statusPillClass(detecting ? null : (status?.ok ?? null))} data-testid={`cli-status-${panel.id}`}>
+          {detecting ? "检测中..." : status?.label ?? "—"}
         </span>
       </div>
 
-      {status?.detail && <div className="studio-cli-detail">{status.detail}</div>}
+      {status ? <CliStatusInfo panelId={panel.id} status={status} /> : null}
 
       {status?.versionWarning && (
         <p className="studio-cli-warning" data-testid={`cli-version-warning-${panel.id}`}>
@@ -213,12 +245,14 @@ function CliPanelCard({ panel }: { panel: CliPanel }) {
       <div className="studio-cli-actions">
         <button
           type="button"
-          onClick={() => queryClient.invalidateQueries({ queryKey: ["cli-status", panel.id] })}
-          className="studio-action-btn primary-soft"
+          onClick={handleDetect}
+          disabled={detecting}
+          className={`studio-action-btn primary-soft${detecting ? " is-busy" : ""}`}
           data-testid={`cli-refresh-${panel.id}`}
+          aria-busy={detecting}
         >
-          <RefreshCw className="w-3.5 h-3.5" aria-hidden />
-          <span>检测 CLI</span>
+          <RefreshCw className={`w-3.5 h-3.5${detecting ? " studio-icon-spin" : ""}`} aria-hidden />
+          <span>{detecting ? "检测中..." : "检测 CLI"}</span>
         </button>
         {visibleExtra.map((extra) => (
           <button
