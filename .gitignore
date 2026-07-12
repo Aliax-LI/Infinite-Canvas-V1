@@ -47,18 +47,15 @@ global_config.json
 history.json
 DESKTOP_BUILD_ID
 
-# User-specific data (keep tracked defaults like data/asset_library.json)
-data/api_providers.json
-data/projects.json
-data/conversations/
-data/canvases/
-data/update_backups/
+# Local app data (DB, secrets, history, objects, conversations, config JSON)
+# Bootstrapped on first run via ensure_data_dirs() / default_* helpers
+data/
 
 # Local Python venv (dev fallback; packaged venv lives in userData)
 venv/
 .venv/
 env/
-
+.recover/
 # Self-restart scripts/logs
 _self_restart.*
 
