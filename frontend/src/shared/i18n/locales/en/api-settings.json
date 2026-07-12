@@ -196,5 +196,19 @@
   "modelPickerCancel": "Cancel",
   "modelPickerApply": "Apply to Model List",
   "modelPickerFetched": "Fetched {{total}} models · use Select Models to choose imports",
-  "modelPickerApplied": "Applied · Image {{image}} / LLM {{chat}} / Video {{video}}"
+  "modelPickerApplied": "Applied · Image {{image}} / LLM {{chat}} / Video {{video}}",
+  "assetAnnotation": {
+    "title": "Asset AI tagging",
+    "desc": "Choose the LLM used for automatic asset library image tagging. If provider is empty, the first enabled API provider is used.",
+    "movedHint": "Provider, model, and prompt now live in the top-right of the Asset Library page for quick access while tagging.",
+    "openLibrary": "Open Asset Library settings",
+    "provider": "Tagging provider",
+    "model": "Tagging model",
+    "prompt": "Extra prompt (optional)",
+    "promptPlaceholder": "e.g. focus on use case and style for e-commerce assets",
+    "save": "Save tagging settings",
+    "saving": "Saving...",
+    "saved": "Tagging settings saved",
+    "saveFailed": "Failed to save tagging settings"
+  }
 }

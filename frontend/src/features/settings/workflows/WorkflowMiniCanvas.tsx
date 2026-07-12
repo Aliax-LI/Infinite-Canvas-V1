@@ -127,10 +127,14 @@ export function WorkflowMiniCanvas({
     );
     onNodesChange(nextNodes);
     const form = new FormData();
-    form.append("file", file);
+    form.append("files", file);
     try {
-      const res = await api.upload<{ comfy_name?: string; filename?: string }>("/api/upload", form);
-      const value = res.comfy_name || res.filename || file.name;
+      const res = await api.upload<{ files?: { comfy_name?: string; filename?: string }[] }>(
+        "/api/upload",
+        form,
+      );
+      const uploaded = res.files?.[0];
+      const value = uploaded?.comfy_name || uploaded?.filename || file.name;
       onNodesChange(
         nextNodes.map((n) => (n.id === node.id ? { ...n, value, name: file.name } : n)),
       );

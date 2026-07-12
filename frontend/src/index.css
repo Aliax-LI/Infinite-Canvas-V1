@@ -58,7 +58,10 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
-button {
+button,
+input,
+textarea,
+select {
   font-family: inherit;
 }
 

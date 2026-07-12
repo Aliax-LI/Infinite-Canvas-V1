@@ -32,6 +32,8 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+export { rangeFillPercent, rangeFillStyle } from "./rangeFillStyle";
+
 export const CLIENT_ID_KEY = "smart_canvas_client_id";
 
 export function getClientId(): string {

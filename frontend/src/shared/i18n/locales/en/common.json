@@ -8,6 +8,10 @@
   "close": "Close",
   "confirm": "Confirm",
   "back": "Back",
+  "download": "Download",
+  "prev": "Previous",
+  "next": "Next",
+  "downloadFailed": "Download failed",
   "nav": {
     "canvas": "Canvas",
     "settings": "Settings",

@@ -1,5 +1,7 @@
 {
   "title": "Asset Manager",
+  "searchPlaceholder": "Search by name",
+  "allCategories": "All folders",
   "tabs": {
     "assets": "Images",
     "workflows": "Workflows",
@@ -9,11 +11,45 @@
   },
   "actions": {
     "upload": "Upload",
+    "uploadWorkflow": "Upload workflow",
     "delete": "Delete",
     "move": "Move",
     "search": "Search",
     "caption": "AI Caption",
-    "import": "Import"
+    "import": "Import",
+    "newPromptLib": "New prompt library",
+    "create": "Create"
   },
-  "empty": "No assets yet"
+  "empty": "No assets yet",
+  "emptyWorkflows": "No workflows yet",
+  "emptyCanvas": "No canvas assets yet",
+  "uploading": "Uploading...",
+  "annotation": {
+    "label": "AI tagging",
+    "provider": "Provider",
+    "model": "Model",
+    "prompt": "Prompt",
+    "promptPlaceholder": "e.g. focus on use case and style for e-commerce assets",
+    "savePrompt": "Save prompt",
+    "saving": "Saving...",
+    "loading": "Loading tagging settings…",
+    "noProviders": "Configure multimodal chat models in API settings first"
+  },
+  "tags": {
+    "annotate": "AI tag",
+    "edit": "Edit tags",
+    "editTitle": "Edit asset tags",
+    "inputLabel": "Tags",
+    "inputPlaceholder": "Enter tags separated by commas",
+    "inputHint": "e.g. indoor, product, e-commerce hero",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Tags saved",
+    "saveFailed": "Failed to save tags",
+    "annotateSuccess": "AI tagging complete",
+    "annotateFailed": "AI tagging failed",
+    "batchAnnotate": "AI tag selected ({{count}})",
+    "batchAnnotateSuccess": "AI tagged {{count}} items",
+    "cancel": "Cancel"
+  }
 }

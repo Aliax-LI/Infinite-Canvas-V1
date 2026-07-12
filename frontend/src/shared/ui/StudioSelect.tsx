@@ -134,6 +134,8 @@ export function StudioSelect({
       ref={rootRef}
       className={cn("studio-select", framed && "studio-select--framed", className)}
       data-testid={testId}
+      data-node-control=""
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <button
         type="button"
@@ -144,6 +146,7 @@ export function StudioSelect({
         aria-controls={listId}
         data-testid={testId ? `${testId}-trigger` : undefined}
         onKeyDown={handleKeyDown}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={() => {
           if (disabled) return;
           if (open) {

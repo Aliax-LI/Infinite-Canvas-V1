@@ -1,53 +1,100 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  Sparkles,
   Image,
-  Layers,
-  RotateCw,
   Globe,
-  Wrench,
   FolderOpen,
+  Zap,
+  PenLine,
+  Box,
 } from "lucide-react";
 
 const tools = [
-  { to: "/enhance", labelKey: "tools.enhance", icon: Sparkles, descKey: "tools.enhanceDesc" },
-  { to: "/klein", labelKey: "tools.klein", icon: Image, descKey: "tools.kleinDesc" },
-  { to: "/zimage", labelKey: "tools.zimage", icon: Layers, descKey: "tools.zimageDesc" },
-  { to: "/angle", labelKey: "tools.angle", icon: RotateCw, descKey: "tools.angleDesc" },
-  { to: "/online", labelKey: "tools.online", icon: Globe, descKey: "tools.onlineDesc" },
+  {
+    to: "/zimage",
+    labelKey: "tools.zimage",
+    descKey: "textToImageDesc",
+    icon: Image,
+    tagKeys: ["tagLocal", "tagCloud"] as const,
+  },
+  {
+    to: "/enhance",
+    labelKey: "tools.enhance",
+    descKey: "enhanceDesc",
+    icon: Zap,
+    tagKeys: ["tagLocal"] as const,
+  },
+  {
+    to: "/klein",
+    labelKey: "tools.klein",
+    descKey: "imageEditDesc",
+    icon: PenLine,
+    tagKeys: ["tagLocal", "tagCloud"] as const,
+  },
+  {
+    to: "/angle",
+    labelKey: "tools.angle",
+    descKey: "angleDesc",
+    icon: Box,
+    tagKeys: ["tagLocal", "tagCloud"] as const,
+  },
+  {
+    to: "/online",
+    labelKey: "tools.online",
+    descKey: "tools.onlineDesc",
+    icon: Globe,
+    tagKeys: ["tagCloud"] as const,
+    useStudioNs: true,
+  },
 ] as const;
 
 export function ToolsHubPage() {
-  const { t } = useTranslation("studio");
+  const { t: tStudio } = useTranslation("studio");
+  const { t: tTools } = useTranslation("tools");
 
   return (
-    <div className="h-full overflow-auto p-8" data-testid="tools-hub-page">
-      <div className="flex items-center gap-3 mb-8">
-        <Wrench className="w-6 h-6" />
-        <h1 className="text-2xl font-semibold">{t("tools.title")}</h1>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-4xl">
-        {tools.map(({ to, labelKey, icon: Icon, descKey }) => (
+    <div className="studio-tools-hub" data-testid="tools-hub-page">
+      <header className="studio-tools-hub-head">
+        <h1 className="studio-tools-hub-title">{tTools("title")}</h1>
+        <p className="studio-tools-hub-sub">{tTools("subtitle")}</p>
+      </header>
+
+      <div className="studio-tools-grid">
+        {tools.map(({ to, labelKey, descKey, icon: Icon, tagKeys, useStudioNs }) => (
           <Link
             key={to}
             to={to}
-            className="border border-[var(--border)] p-6 hover:bg-[var(--nav-hover-bg)]"
+            className="studio-tool-card"
             data-testid={`tool-link-${to.slice(1)}`}
           >
-            <Icon className="w-8 h-8 mb-3" />
-            <h2 className="font-medium">{t(labelKey)}</h2>
-            <p className="text-sm text-[var(--muted)] mt-1">{t(descKey)}</p>
+            <div className="studio-tool-card-icon">
+              <Icon className="w-5 h-5" />
+            </div>
+            <div className="studio-tool-card-name">
+              {useStudioNs ? tStudio(labelKey) : tStudio(labelKey)}
+            </div>
+            <p className="studio-tool-card-desc">
+              {useStudioNs ? tStudio(descKey) : tTools(descKey)}
+            </p>
+            <div className="studio-tool-card-tags" data-testid={`tool-tags-${to.slice(1)}`}>
+              {tagKeys.map((tagKey) => (
+                <span key={tagKey} className="studio-tool-card-tag">
+                  {tTools(tagKey)}
+                </span>
+              ))}
+            </div>
           </Link>
         ))}
-        <Link
-          to="/assets"
-          className="border border-[var(--border)] p-6 hover:bg-[var(--nav-hover-bg)]"
-          data-testid="tool-link-assets"
-        >
-          <FolderOpen className="w-8 h-8 mb-3" />
-          <h2 className="font-medium">{t("assets.title")}</h2>
-          <p className="text-sm text-[var(--muted)] mt-1">{t("tools.assetLibraryDesc")}</p>
+
+        <Link to="/assets" className="studio-tool-card" data-testid="tool-link-assets">
+          <div className="studio-tool-card-icon">
+            <FolderOpen className="w-5 h-5" />
+          </div>
+          <div className="studio-tool-card-name">{tStudio("assets.title")}</div>
+          <p className="studio-tool-card-desc">{tStudio("tools.assetLibraryDesc")}</p>
+          <div className="studio-tool-card-tags" data-testid="tool-tags-assets">
+            <span className="studio-tool-card-tag">{tTools("tagLibrary")}</span>
+          </div>
         </Link>
       </div>
     </div>

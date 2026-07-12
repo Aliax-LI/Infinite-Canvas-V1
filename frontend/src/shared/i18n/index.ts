@@ -18,6 +18,8 @@ import zhTools from "./locales/zh/tools.json";
 import enTools from "./locales/en/tools.json";
 import zhAssets from "./locales/zh/assets.json";
 import enAssets from "./locales/en/assets.json";
+import zhStorageSettings from "./locales/zh/storage-settings.json";
+import enStorageSettings from "./locales/en/storage-settings.json";
 
 const savedLang = (() => {
   try {
@@ -39,6 +41,7 @@ i18n.use(initReactI18next).init({
       chat: zhChat,
       tools: zhTools,
       assets: zhAssets,
+      "storage-settings": zhStorageSettings,
     },
     en: {
       common: en,
@@ -50,6 +53,7 @@ i18n.use(initReactI18next).init({
       chat: enChat,
       tools: enTools,
       assets: enAssets,
+      "storage-settings": enStorageSettings,
     },
   },
   lng: savedLang,

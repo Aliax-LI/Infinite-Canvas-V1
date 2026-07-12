@@ -1,11 +1,12 @@
 {
   "title": "Toolbox",
   "subtitle": "Local ComfyUI tools and assets in one hub.",
-  "textToImageDesc": "Local text-to-image generation",
+  "textToImageDesc": "Local ComfyUI or ModelScope cloud text-to-image",
   "enhanceDesc": "Upscale and detail refinement",
-  "imageEditDesc": "Local editing with Klein workflow",
+  "imageEditDesc": "Local Klein workflow or ModelScope cloud editing",
   "angleDesc": "Camera angle and perspective control",
   "assetsDesc": "Manage images and canvas assets",
   "tagLocal": "Local",
+  "tagCloud": "Cloud API",
   "tagLibrary": "Library"
 }

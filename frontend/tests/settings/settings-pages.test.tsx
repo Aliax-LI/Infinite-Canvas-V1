@@ -105,6 +105,67 @@ describe("ApiSettingsPage", () => {
     expect(target?.api_key).toBe("sk-test-key");
   });
 
+  it("header Save persists pending api key without requiring checkmark", async () => {
+    wrap(<ApiSettingsPage />);
+    await screen.findByTestId("provider-editor-p1");
+    fireEvent.change(screen.getByTestId("provider-key-editor"), {
+      target: { value: "sk-from-header-save" },
+    });
+    fireEvent.click(screen.getByTestId("provider-save-p1"));
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalled();
+    });
+    const payload = vi.mocked(api.put).mock.calls.at(-1)?.[1] as Array<{ id: string; api_key?: string }>;
+    expect(payload.find((p) => p.id === "p1")?.api_key).toBe("sk-from-header-save");
+    expect(await screen.findByTestId("api-settings-save-dialog")).toBeTruthy();
+  });
+
+  it("header Save persists pending volcengine AK/SK drafts", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      providers: [
+        {
+          id: "volcengine",
+          name: "火山引擎",
+          base_url: "https://ark.cn-beijing.volces.com/api/v3",
+          protocol: "volcengine",
+          enabled: true,
+          image_models: [],
+          chat_models: [],
+          video_models: [],
+          has_key: true,
+          key_preview: "••••ark",
+          has_volcengine_access_key: false,
+          has_volcengine_secret_key: false,
+        },
+      ],
+    });
+    wrap(<ApiSettingsPage />);
+    await screen.findByTestId("provider-editor-volcengine");
+    fireEvent.change(screen.getByTestId("provider-key-editor"), {
+      target: { value: "ark-key-draft" },
+    });
+    fireEvent.change(screen.getByTestId("provider-volc-ak-editor"), {
+      target: { value: "AKLT-draft" },
+    });
+    fireEvent.change(screen.getByTestId("provider-volc-sk-editor"), {
+      target: { value: "SK-draft" },
+    });
+    fireEvent.click(screen.getByTestId("provider-save-volcengine"));
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalled();
+    });
+    const payload = vi.mocked(api.put).mock.calls.at(-1)?.[1] as Array<{
+      id: string;
+      api_key?: string;
+      volcengine_access_key_id?: string;
+      volcengine_secret_access_key?: string;
+    }>;
+    const volc = payload.find((p) => p.id === "volcengine");
+    expect(volc?.api_key).toBe("ark-key-draft");
+    expect(volc?.volcengine_access_key_id).toBe("AKLT-draft");
+    expect(volc?.volcengine_secret_access_key).toBe("SK-draft");
+  });
+
   it("clears api key with confirmation", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     wrap(<ApiSettingsPage />);
@@ -1029,6 +1090,7 @@ describe("SettingsLayout", () => {
     wrap(<SettingsLayout />, "/settings/api");
     const tabs = screen.getAllByRole("tab");
     expect(tabs.at(-1)?.getAttribute("data-testid")).toBe("settings-tab-about");
+    expect(screen.getByTestId("settings-tab-storage")).toBeTruthy();
   });
 
   it("supports arrow key tab navigation", async () => {

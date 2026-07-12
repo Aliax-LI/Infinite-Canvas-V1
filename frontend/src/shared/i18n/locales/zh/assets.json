@@ -1,5 +1,7 @@
 {
   "title": "素材管理",
+  "searchPlaceholder": "搜索素材名称",
+  "allCategories": "全部分组",
   "tabs": {
     "assets": "图片资产",
     "workflows": "工作流",
@@ -9,11 +11,45 @@
   },
   "actions": {
     "upload": "上传",
+    "uploadWorkflow": "上传工作流",
     "delete": "删除",
     "move": "移动",
     "search": "搜索",
     "caption": "AI 描述",
-    "import": "导入"
+    "import": "导入",
+    "newPromptLib": "新提示词库",
+    "create": "创建"
   },
-  "empty": "暂无素材"
+  "empty": "暂无素材",
+  "emptyWorkflows": "暂无工作流",
+  "emptyCanvas": "暂无画布资产",
+  "uploading": "上传中...",
+  "annotation": {
+    "label": "AI 标注",
+    "provider": "平台",
+    "model": "模型",
+    "prompt": "提示词",
+    "promptPlaceholder": "例如：重点标注用途和风格，用于电商素材筛选",
+    "savePrompt": "保存提示词",
+    "saving": "保存中...",
+    "loading": "加载标注配置…",
+    "noProviders": "请先在 API 设置中配置支持多模态的对话模型"
+  },
+  "tags": {
+    "annotate": "AI 标注",
+    "edit": "编辑标签",
+    "editTitle": "编辑素材标签",
+    "inputLabel": "标签",
+    "inputPlaceholder": "输入标签，用逗号分隔",
+    "inputHint": "例如：室内, 产品, 电商主图",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "标签已保存",
+    "saveFailed": "标签保存失败",
+    "annotateSuccess": "AI 标注完成",
+    "annotateFailed": "AI 标注失败",
+    "batchAnnotate": "AI 标注所选 ({{count}})",
+    "batchAnnotateSuccess": "已完成 {{count}} 项 AI 标注",
+    "cancel": "取消"
+  }
 }

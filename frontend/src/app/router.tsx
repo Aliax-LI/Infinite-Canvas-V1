@@ -6,6 +6,7 @@ import { SettingsGeneralPage } from "../features/settings/SettingsGeneralPage";
 import { ApiSettingsPage } from "../features/settings/api/ApiSettingsPage";
 import { WorkflowsSettingsPage } from "../features/settings/workflows/WorkflowsSettingsPage";
 import { CliSettingsPanel } from "../features/settings/cli/CliSettingsPanel";
+import { StorageSettingsPage } from "../features/settings/storage/StorageSettingsPage";
 import { SmartCanvasPage } from "../features/smart-canvas/SmartCanvasPage";
 import { LegacyCanvasPage } from "../features/canvas/LegacyCanvasPage";
 import { AssetManagerPage } from "../features/asset-manager/AssetManagerPage";
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
           { path: "api", element: <ApiSettingsPage /> },
           { path: "workflows", element: <WorkflowsSettingsPage /> },
           { path: "cli", element: <CliSettingsPanel /> },
+          { path: "storage", element: <StorageSettingsPage /> },
         ],
       },
       { path: "assets", element: <AssetManagerPage /> },

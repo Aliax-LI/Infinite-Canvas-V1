@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Boxes, Info, Link2, Terminal } from "lucide-react";
+import { Boxes, HardDrive, Info, Link2, Terminal } from "lucide-react";
 import { useCallback, useRef } from "react";
 import { cn } from "../../shared/utils";
 
@@ -8,6 +8,7 @@ const tabs = [
   { to: "/settings/api", labelKey: "settings.tabs.api", testId: "settings-tab-api", icon: Link2 },
   { to: "/settings/workflows", labelKey: "settings.tabs.workflows", testId: "settings-tab-workflows", icon: Boxes },
   { to: "/settings/cli", labelKey: "settings.tabs.cli", testId: "settings-tab-cli", icon: Terminal },
+  { to: "/settings/storage", labelKey: "settings.tabs.storage", testId: "settings-tab-storage", icon: HardDrive },
   { to: "/settings", end: true, labelKey: "settings.tabs.about", testId: "settings-tab-about", icon: Info },
 ] as const;
 

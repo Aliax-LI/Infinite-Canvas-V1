@@ -14,6 +14,7 @@ export interface CanvasRecord {
   owner?: string;
   color?: string;
   pinned?: boolean;
+  node_count?: number;
 }
 
 export interface CanvasDoc extends CanvasRecord {

@@ -196,5 +196,19 @@
   "modelPickerCancel": "取消",
   "modelPickerApply": "应用到模型列表",
   "modelPickerFetched": "已拉取 {{total}} 个模型 · 点「选择模型」勾选要导入的",
-  "modelPickerApplied": "已应用 · 生图 {{image}} / LLM {{chat}} / 视频 {{video}}"
+  "modelPickerApplied": "已应用 · 生图 {{image}} / LLM {{chat}} / 视频 {{video}}",
+  "assetAnnotation": {
+    "title": "素材 AI 标注",
+    "desc": "配置用于素材库图片自动打标的大模型。留空平台时将使用 API 列表中的首个可用平台。",
+    "movedHint": "平台、模型与提示词已移至素材库页面右上角，便于标注时快速切换。",
+    "openLibrary": "打开素材库配置",
+    "provider": "标注平台",
+    "model": "标注模型",
+    "prompt": "补充提示（可选）",
+    "promptPlaceholder": "例如：重点标注用途和风格，用于电商素材筛选",
+    "save": "保存标注配置",
+    "saving": "保存中...",
+    "saved": "标注配置已保存",
+    "saveFailed": "标注配置保存失败"
+  }
 }

@@ -47,7 +47,12 @@ import {
 import { RecommendApiModal } from "./RecommendApiModal";
 import type { RecommendedPreset } from "./recommendedPresets";
 import { MsLoraManager } from "./MsLoraManager";
+import { AssetAnnotationSettingsPanel } from "./AssetAnnotationSettingsPanel";
 import { normalizeMsLoras, type MsLora } from "./msLoraState";
+import {
+  collectPendingSecretExtra,
+  mergeSecretExtra,
+} from "./pendingSecretExtra";
 import {
   CUSTOM_PLATFORM_PROTOCOLS,
   effectiveProtocol,
@@ -84,6 +89,10 @@ interface Provider extends ProviderListItem {
   video_models?: string[];
   ms_loras?: MsLora[];
   key_preview?: string;
+  has_volcengine_access_key?: boolean;
+  volcengine_access_key_preview?: string;
+  has_volcengine_secret_key?: boolean;
+  volcengine_secret_key_preview?: string;
 }
 
 type ModelKind = "image_models" | "chat_models" | "video_models";
@@ -328,6 +337,9 @@ export function ApiSettingsPage() {
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
+  /** Volcengine IAM AK/SK drafts (same confirm-then-save UX as api_key). */
+  const [volcAkInput, setVolcAkInput] = useState("");
+  const [volcSkInput, setVolcSkInput] = useState("");
   const [verifyResult, setVerifyResult] = useState<VerifyResultState | null>(null);
   const [saveDialogMessage, setSaveDialogMessage] = useState<string | null>(null);
   const [noticeDialog, setNoticeDialog] = useState<{ title: string; message: string } | null>(null);
@@ -347,6 +359,8 @@ export function ApiSettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["providers"] });
       setKeyInput("");
+      setVolcAkInput("");
+      setVolcSkInput("");
     },
   });
 
@@ -373,6 +387,8 @@ export function ApiSettingsPage() {
 
   useEffect(() => {
     setKeyInput("");
+    setVolcAkInput("");
+    setVolcSkInput("");
     setVerifyResult(null);
     setFetchedModels(null);
     setShowModelPicker(false);
@@ -397,15 +413,30 @@ export function ApiSettingsPage() {
       p.id === "modelscope" && p.id === selectedId ? { ...p, ms_loras: loraDraft } : p,
     );
 
+  const pendingSecretExtra = () =>
+    collectPendingSecretExtra({
+      apiKey: keyInput,
+      volcAccessKey: volcAkInput,
+      volcSecretKey: volcSkInput,
+    });
+
   const persist = (
     next: Provider[],
     extra?: Record<string, unknown>,
     saveMessage?: string,
   ) => {
+    // Mirror history syncEditor(): flush draft secrets into Save / any persist for the selected provider.
+    const selectedExtra = mergeSecretExtra(pendingSecretExtra(), extra);
     saveMutation.mutate(
-      providersForSave(next).map((p) => providerPayload(p, p.id === selectedId ? extra : undefined)),
+      providersForSave(next).map((p) =>
+        providerPayload(p, p.id === selectedId ? selectedExtra : undefined),
+      ),
       saveMessage ? { onSuccess: () => notifySave(saveMessage) } : undefined,
     );
+  };
+
+  const handleHeaderSave = () => {
+    persist(providers, undefined, "已保存");
   };
 
   const fetchModelsMutation = useMutation({
@@ -661,7 +692,40 @@ export function ApiSettingsPage() {
     if (!selected) return;
     if (!selected.has_key && !keyInput.trim()) return;
     if (!window.confirm("确认清除当前 Key？")) return;
+    setKeyInput("");
     persist(providers, { clear_key: true }, "Key 已清除");
+  };
+
+  const saveVolcAssetKeys = () => {
+    if (!selected || !isVolcengineProvider(selected)) return;
+    const ak = volcAkInput.trim();
+    const sk = volcSkInput.trim();
+    if (!ak && !sk) {
+      showNotice("请输入 Access Key 或 Secret Key");
+      return;
+    }
+    const extra: Record<string, unknown> = {};
+    if (ak) extra.volcengine_access_key_id = ak;
+    if (sk) extra.volcengine_secret_access_key = sk;
+    persist(providers, extra, "火山引擎 AK/SK 已保存");
+  };
+
+  const clearVolcAssetKeys = () => {
+    if (!selected || !isVolcengineProvider(selected)) return;
+    const hasSaved =
+      Boolean(selected.has_volcengine_access_key) || Boolean(selected.has_volcengine_secret_key);
+    if (!hasSaved && !volcAkInput.trim() && !volcSkInput.trim()) return;
+    if (!window.confirm("确认清除火山引擎 Access Key / Secret Key？")) return;
+    setVolcAkInput("");
+    setVolcSkInput("");
+    persist(
+      providers,
+      {
+        clear_volcengine_access_key_id: true,
+        clear_volcengine_secret_access_key: true,
+      },
+      "火山引擎 AK/SK 已清除",
+    );
   };
 
   const addCliProvider = (protocol: string) => {
@@ -755,6 +819,8 @@ export function ApiSettingsPage() {
           <p className="studio-dialog-message">{noticeDialog.message}</p>
         </StudioDialog>
       )}
+
+      <AssetAnnotationSettingsPanel />
 
       <div className="studio-workspace-layout">
         <aside className="studio-workspace-sidebar">
@@ -932,7 +998,7 @@ export function ApiSettingsPage() {
                   {!isCliProvider(selected) && (
                     <button
                       type="button"
-                      onClick={() => persist(providers, undefined, "已保存")}
+                      onClick={handleHeaderSave}
                       disabled={saveMutation.isPending}
                       className="studio-action-btn primary"
                       data-testid={`provider-save-${selected.id}`}
@@ -1017,7 +1083,9 @@ export function ApiSettingsPage() {
                       />
                     </label>
                     <label className="studio-field full studio-field-key">
-                      <span className="studio-field-label">API Key</span>
+                      <span className="studio-field-label">
+                        {isVolcengineProvider(selected) ? t("volcengineArkKey") : "API Key"}
+                      </span>
                       <div className="studio-key-row">
                         <div className="studio-field-frame studio-key-input-frame">
                           <input
@@ -1059,6 +1127,65 @@ export function ApiSettingsPage() {
                         </div>
                       </div>
                     </label>
+                    {isVolcengineProvider(selected) && (
+                      <div
+                        className="studio-field full studio-volc-asset-keys"
+                        data-testid="provider-volc-asset-keys"
+                      >
+                        <div className="studio-field-label">{t("volcengineAssetKeys")}</div>
+                        <p className="studio-field-hint">{t("volcengineAssetKeysDesc")}</p>
+                        <div className="studio-key-row">
+                          <div className="studio-field-frame studio-key-input-frame">
+                            <input
+                              value={volcAkInput}
+                              onChange={(e) => setVolcAkInput(e.target.value)}
+                              type="password"
+                              placeholder={
+                                selected.has_volcengine_access_key
+                                  ? `输入新 AK 覆盖 ${selected.volcengine_access_key_preview ?? ""}`.trim()
+                                  : "Access Key ID"
+                              }
+                              data-testid="provider-volc-ak-editor"
+                            />
+                          </div>
+                        </div>
+                        <div className="studio-key-row">
+                          <div className="studio-field-frame studio-key-input-frame">
+                            <input
+                              value={volcSkInput}
+                              onChange={(e) => setVolcSkInput(e.target.value)}
+                              type="password"
+                              placeholder={
+                                selected.has_volcengine_secret_key
+                                  ? `输入新 SK 覆盖 ${selected.volcengine_secret_key_preview ?? ""}`.trim()
+                                  : "Secret Access Key"
+                              }
+                              data-testid="provider-volc-sk-editor"
+                            />
+                          </div>
+                          <div className="studio-key-actions">
+                            <button
+                              type="button"
+                              className="studio-key-btn"
+                              title="保存火山素材库 AK/SK"
+                              onClick={saveVolcAssetKeys}
+                              data-testid="provider-save-volc-keys-btn"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              className="studio-key-btn studio-key-clear"
+                              title="清除火山素材库 AK/SK"
+                              onClick={clearVolcAssetKeys}
+                              data-testid="provider-clear-volc-keys-btn"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="studio-field full">
                       <div
                         className="studio-key-action-stack"

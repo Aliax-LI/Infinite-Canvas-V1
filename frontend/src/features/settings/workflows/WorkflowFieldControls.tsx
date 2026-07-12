@@ -2,6 +2,7 @@ import { Dices, Upload } from "lucide-react";
 import { useRef } from "react";
 import { api } from "../../../shared/api/client";
 import { StudioSelect } from "../../../shared/ui/StudioSelect";
+import { rangeFillStyle } from "../../../shared/utils/rangeFillStyle";
 import {
   fieldKind,
   randomPreviewValue,
@@ -42,13 +43,14 @@ export function WorkflowFieldControls({ field, value, onChange, compact }: Workf
   const uploadMedia = async (file: File) => {
     setBlobUrl(file);
     const form = new FormData();
-    form.append("file", file);
+    form.append("files", file);
     try {
-      const res = await api.upload<{ comfy_name?: string; filename?: string; url?: string }>(
+      const res = await api.upload<{ files?: { comfy_name?: string; filename?: string; url?: string }[] }>(
         "/api/upload",
         form,
       );
-      onChange(res.comfy_name || res.filename || res.url || file.name);
+      const uploaded = res.files?.[0];
+      onChange(uploaded?.comfy_name || uploaded?.filename || uploaded?.url || file.name);
     } catch {
       onChange(file.name);
     }
@@ -83,6 +85,7 @@ export function WorkflowFieldControls({ field, value, onChange, compact }: Workf
   if (field.type === "slider") {
     const { min, max, step } = sliderBounds(field);
     const num = Number(value ?? min);
+    const current = Number.isFinite(num) ? num : min;
     return (
       <div className="studio-mini-slider-row">
         <input
@@ -90,7 +93,8 @@ export function WorkflowFieldControls({ field, value, onChange, compact }: Workf
           min={min}
           max={max}
           step={step}
-          value={Number.isFinite(num) ? num : min}
+          value={current}
+          style={rangeFillStyle(current, min, max)}
           onChange={(e) => onChange(parseFloat(e.target.value))}
           data-testid={`workflow-preview-slider-${field.id}`}
         />

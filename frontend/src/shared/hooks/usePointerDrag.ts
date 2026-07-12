@@ -8,7 +8,7 @@ export interface PointerDragHandlers {
 
 export interface LegacyPointerDragOptions {
   onStart?: (e?: PointerEvent) => void;
-  onMove: (
+  onMove?: (
     x: number,
     y: number,
     dx: number,
@@ -17,6 +17,8 @@ export interface LegacyPointerDragOptions {
   ) => void;
   onEnd?: (e?: PointerEvent) => void;
   stopPropagation?: boolean;
+  /** Return false to skip drag (e.g. clicking form controls). */
+  shouldStart?: (e: PointerEvent) => boolean;
 }
 
 function isLegacyOptions(
@@ -25,8 +27,11 @@ function isLegacyOptions(
   return (
     typeof arg === "object" &&
     arg !== null &&
-    "onMove" in arg &&
-    typeof (arg as LegacyPointerDragOptions).onMove === "function"
+    ("onMove" in arg ||
+      "onStart" in arg ||
+      "onEnd" in arg ||
+      "stopPropagation" in arg ||
+      "shouldStart" in arg)
   );
 }
 
@@ -53,11 +58,15 @@ export function usePointerDrag(
         onStart: onMoveOrOptions.onStart,
         onEnd: onMoveOrOptions.onEnd,
         stopPropagation: onMoveOrOptions.stopPropagation,
+        shouldStart: onMoveOrOptions.shouldStart,
       }
     : options;
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    if (mergedOptions?.shouldStart && !mergedOptions.shouldStart(e.nativeEvent)) {
+      return;
+    }
     if (mergedOptions?.stopPropagation) e.stopPropagation();
     dragging.current = true;
     last.current = { x: e.clientX, y: e.clientY };
@@ -73,19 +82,15 @@ export function usePointerDrag(
       const dy = e.clientY - last.current.y;
       last.current = { x: e.clientX, y: e.clientY };
       if (legacy) {
-        onMoveOrOptions.onMove(
+        onMoveOrOptions.onMove?.(
           e.clientX,
           e.clientY,
           dx,
           dy,
           start.current ?? undefined,
         );
-      } else {
-        (onMove as (dx: number, dy: number, e: PointerEvent) => void)(
-          dx,
-          dy,
-          e.nativeEvent,
-        );
+      } else if (typeof onMove === "function") {
+        onMove(dx, dy, e.nativeEvent);
       }
     },
     [legacy, onMove, onMoveOrOptions],
@@ -96,7 +101,11 @@ export function usePointerDrag(
       if (!dragging.current) return;
       dragging.current = false;
       start.current = null;
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* already released */
+      }
       mergedOptions?.onEnd?.(e.nativeEvent);
     },
     [mergedOptions],

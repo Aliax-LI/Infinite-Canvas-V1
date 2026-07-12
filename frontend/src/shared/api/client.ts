@@ -1,3 +1,5 @@
+import { formatApiDetail, statusFallbackMessage } from "./formatError";
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -30,7 +32,10 @@ function defaultHeaders(init?: RequestInit): Headers {
   if (!headers.has("X-User-ID")) {
     headers.set("X-User-ID", getUserId());
   }
-  if (init?.body && !headers.has("Content-Type")) {
+  const body = init?.body;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const isBlob = typeof Blob !== "undefined" && body instanceof Blob;
+  if (body && !headers.has("Content-Type") && !isFormData && !isBlob) {
     headers.set("Content-Type", "application/json");
   }
   return headers;
@@ -53,13 +58,15 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
+    const detail =
+      typeof data === "object" && data !== null && "detail" in data
+        ? formatApiDetail((data as { detail: unknown }).detail)
+        : null;
     const message =
-      typeof data === "object" &&
-      data !== null &&
-      "detail" in data &&
-      typeof (data as { detail: unknown }).detail === "string"
-        ? (data as { detail: string }).detail
-        : response.statusText || "Request failed";
+      detail ||
+      (response.statusText && response.statusText !== "Not Found"
+        ? response.statusText
+        : statusFallbackMessage(response.status, "Request failed"));
     throw new ApiError(message, response.status, data);
   }
 
@@ -73,21 +80,31 @@ export async function* streamSse(
   body: unknown,
   signal?: AbortSignal,
 ): AsyncGenerator<SseEvent> {
-  const headers = defaultHeaders({
+  const init: RequestInit = {
     method: "POST",
     body: JSON.stringify(body),
-  });
-  const response = await fetch(path, { headers, signal });
+    signal,
+  };
+  const headers = defaultHeaders(init);
+  const response = await fetch(path, { ...init, headers });
   if (!response.ok) {
     const text = await response.text();
-    let detail = response.statusText;
+    let data: unknown = text;
     try {
-      const parsed = JSON.parse(text) as { detail?: string };
-      if (parsed.detail) detail = parsed.detail;
+      data = JSON.parse(text);
     } catch {
       /* ignore */
     }
-    throw new ApiError(detail, response.status, text);
+    const detail =
+      typeof data === "object" && data !== null && "detail" in data
+        ? formatApiDetail((data as { detail: unknown }).detail)
+        : null;
+    const message =
+      detail ||
+      (response.statusText && response.statusText !== "Not Found"
+        ? response.statusText
+        : statusFallbackMessage(response.status, "Request failed"));
+    throw new ApiError(message, response.status, data);
   }
   const reader = response.body?.getReader();
   if (!reader) return;
@@ -128,5 +145,33 @@ export const api = {
     const headers = new Headers();
     headers.set("X-User-ID", getUserId());
     return apiFetch<T>(path, { method: "POST", body: form, headers });
+  },
+  postBlob: async (path: string, body?: unknown): Promise<Blob> => {
+    const init: RequestInit = {
+      method: "POST",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    };
+    const headers = defaultHeaders(init);
+    const response = await fetch(path, { ...init, headers });
+    if (!response.ok) {
+      const text = await response.text();
+      let data: unknown = text;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        /* ignore */
+      }
+      const detail =
+        typeof data === "object" && data !== null && "detail" in data
+          ? formatApiDetail((data as { detail: unknown }).detail)
+          : null;
+      const message =
+        detail ||
+        (response.statusText && response.statusText !== "Not Found"
+          ? response.statusText
+          : statusFallbackMessage(response.status, "Request failed"));
+      throw new ApiError(message, response.status, data);
+    }
+    return response.blob();
   },
 };

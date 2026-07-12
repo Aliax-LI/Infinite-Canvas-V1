@@ -8,6 +8,10 @@
   "close": "关闭",
   "confirm": "确定",
   "back": "返回",
+  "download": "下载",
+  "prev": "上一张",
+  "next": "下一张",
+  "downloadFailed": "下载失败",
   "nav": {
     "canvas": "画布",
     "settings": "设置",

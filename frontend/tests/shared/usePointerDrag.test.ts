@@ -38,4 +38,58 @@ describe("usePointerDrag", () => {
     );
     expect(moves).toEqual([[5, 5]]);
   });
+
+  it("calls onStart when options omit onMove (port drag)", () => {
+    const starts: number[] = [];
+    const { result } = renderHook(() =>
+      usePointerDrag({
+        onStart: () => {
+          starts.push(1);
+        },
+        stopPropagation: true,
+      }),
+    );
+    const el = document.createElement("div");
+    el.setPointerCapture = () => {};
+    el.releasePointerCapture = () => {};
+    act(() =>
+      result.current.onPointerDown({
+        button: 0,
+        clientX: 1,
+        clientY: 2,
+        pointerId: 1,
+        currentTarget: el,
+        stopPropagation: () => {},
+        nativeEvent: {} as PointerEvent,
+      } as unknown as React.PointerEvent),
+    );
+    expect(starts).toEqual([1]);
+  });
+
+  it("respects shouldStart false (form controls)", () => {
+    const starts: number[] = [];
+    const { result } = renderHook(() =>
+      usePointerDrag({
+        shouldStart: () => false,
+        onStart: () => {
+          starts.push(1);
+        },
+        onMove: () => {},
+      }),
+    );
+    const el = document.createElement("div");
+    el.setPointerCapture = () => {};
+    act(() =>
+      result.current.onPointerDown({
+        button: 0,
+        clientX: 1,
+        clientY: 2,
+        pointerId: 1,
+        currentTarget: el,
+        stopPropagation: () => {},
+        nativeEvent: {} as PointerEvent,
+      } as unknown as React.PointerEvent),
+    );
+    expect(starts).toEqual([]);
+  });
 });
