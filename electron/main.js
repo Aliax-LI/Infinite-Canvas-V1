@@ -22,6 +22,14 @@ const {
   installCliTool,
   CLI_TOOL_DEFS
 } = require('./cli-installer');
+const {
+  defaultStorageRoot,
+  needsStorageSetup,
+  validateStorageRoot,
+  completeStorageSetup,
+  resolveStorage,
+  applyStorageEnvironment
+} = require('./storage-setup');
 
 const APP_NAME = '无限画布';
 const DEFAULT_PORT = 3000;
@@ -43,7 +51,10 @@ let isRestartingBackend = false;
 let activePythonCommand = null;
 let cliSetupResolver = null;
 let cliSetupRejecter = null;
+let storageSetupResolver = null;
+let storageSetupRejecter = null;
 let setupAppDir = null;
+let activeStorageLayout = null;
 
 function projectRoot() {
   return path.resolve(__dirname, '..');
@@ -178,6 +189,7 @@ function windowIconPath() {
   ];
   if (app.isPackaged) {
     candidates.unshift(
+      path.join(process.resourcesPath, 'app-source', 'frontend', 'dist', 'images', 'logo.png'),
       path.join(process.resourcesPath, 'app-source', 'frontend', 'public', 'images', 'logo.png'),
       path.join(process.resourcesPath, 'app-source', 'static', 'images', 'logo.png')
     );
@@ -240,6 +252,11 @@ function createSetupWindow() {
           cliSetupRejecter(new Error('用户关闭了初始化窗口'));
           cliSetupRejecter = null;
           cliSetupResolver = null;
+        }
+        if (storageSetupRejecter) {
+          storageSetupRejecter(new Error('用户关闭了初始化窗口'));
+          storageSetupRejecter = null;
+          storageSetupResolver = null;
         }
         isQuitting = true;
         app.quit();
@@ -310,7 +327,7 @@ function backendPythonCandidates() {
 }
 
 function trySpawnPython(command, appDir, port) {
-  const env = {
+  let env = {
     ...process.env,
     HOST,
     PORT: String(port),
@@ -318,6 +335,7 @@ function trySpawnPython(command, appDir, port) {
     PYTHONUNBUFFERED: '1',
     PATH: expandCliPath(process.env.PATH)
   };
+  if (activeStorageLayout) env = applyStorageEnvironment(env, activeStorageLayout);
   const migratedArgs = ['-m', 'uvicorn', 'backend.main:app', '--host', HOST, '--port', String(port)];
   const legacyArgs = ['main.py'];
   const args = command === 'py'
@@ -468,20 +486,47 @@ function resolveCliSetup() {
   }
 }
 
+function waitForStorageSetup() {
+  return new Promise((resolve, reject) => {
+    storageSetupResolver = resolve;
+    storageSetupRejecter = reject;
+  });
+}
+
+function resolveStorageSetup(layout) {
+  if (storageSetupResolver) {
+    storageSetupResolver(layout);
+    storageSetupResolver = null;
+    storageSetupRejecter = null;
+  }
+}
+
 async function runStartup() {
   startupInProgress = true;
   const appDir = await ensurePackagedRuntime();
   setupAppDir = appDir;
   const userData = app.getPath('userData');
   const isDev = !app.isPackaged;
+  const needStorage = !IS_TEST && !isDev && (await needsStorageSetup(userData));
   const needDeps = IS_TEST ? false : await needsDependencySetup(appDir, userData, { isDev });
   const needCli = IS_TEST ? false : needsCliSetup(userData);
 
-  if (needDeps || needCli) {
+  if (needStorage || needDeps || needCli) {
     await createSetupWindow();
-    if (!needDeps) {
-      sendSetupStatus('ready', 'Python 依赖已就绪');
+  }
+
+  if (!IS_TEST && !isDev) {
+    if (needStorage) {
+      sendSetupPhase('storage');
+      activeStorageLayout = await waitForStorageSetup();
+    } else {
+      activeStorageLayout = (await resolveStorage(userData, appDir)).layout;
     }
+  }
+
+  if (setupWindow) {
+    sendSetupPhase('python');
+    if (!needDeps) sendSetupStatus('ready', 'Python 依赖已就绪');
   }
 
   activePythonCommand = IS_TEST
@@ -581,6 +626,45 @@ ipcMain.handle('setup:getFontUrls', () => ({
   jetbrainsMono: assetFileUrl('vendor', 'fonts', 'jetbrains-mono-7.ttf')
 }));
 
+ipcMain.handle('setup:getStorageInfo', async () => {
+  const userData = app.getPath('userData');
+  const root = defaultStorageRoot(userData);
+  const validation = await validateStorageRoot(root, app.isPackaged ? process.resourcesPath : '');
+  return {
+    root,
+    ...validation,
+    recommendedFreeSpace: '10 GB',
+    localOnly: true
+  };
+});
+
+ipcMain.handle('setup:chooseStorageFolder', async () => {
+  const result = await dialog.showOpenDialog(setupWindow || mainWindow, {
+    title: '选择本地数据目录',
+    defaultPath: defaultStorageRoot(app.getPath('userData')),
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return validateStorageRoot(result.filePaths[0], app.isPackaged ? process.resourcesPath : '');
+});
+
+ipcMain.handle('setup:validateStorage', async (_event, root) => {
+  return validateStorageRoot(root, app.isPackaged ? process.resourcesPath : '');
+});
+
+ipcMain.handle('setup:completeStorage', async (_event, root) => {
+  const appDir = setupAppDir || (await ensurePackagedRuntime());
+  const result = await completeStorageSetup(
+    app.getPath('userData'),
+    root,
+    appDir,
+    app.isPackaged ? process.resourcesPath : ''
+  );
+  activeStorageLayout = result.layout;
+  resolveStorageSetup(result.layout);
+  return result;
+});
+
 ipcMain.handle('setup:getCliTools', async () => {
   const tools = await detectCliStatus();
   return tools.map(tool => {
@@ -642,6 +726,12 @@ ipcMain.handle('desktop:open-external', async (_event, url) => {
   return true;
 });
 
+ipcMain.handle('desktop:open-path', async (_event, targetPath) => {
+  if (typeof targetPath !== 'string' || !targetPath.trim()) return false;
+  const result = await shell.openPath(targetPath);
+  return !result;
+});
+
 app.whenReady().then(async () => {
   while (true) {
     try {
@@ -650,6 +740,7 @@ app.whenReady().then(async () => {
     } catch (err) {
       startupInProgress = false;
       resolveCliSetup();
+      resolveStorageSetup(null);
       closeSetupWindow();
       if (isQuitting || /用户关闭了初始化窗口/.test(err?.message || '')) {
         break;

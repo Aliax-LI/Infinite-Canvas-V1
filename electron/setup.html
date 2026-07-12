@@ -22,17 +22,18 @@
   <style>
     :root {
       --fluid-ease: cubic-bezier(0.3, 0, 0, 1);
-      --accent: #000000;
+      --accent: #111827;
       --bg: #f7f7f8;
       --sidebar-bg: #f7f7f8;
       --stage-bg: #f7f7f8;
       --card: #f7f7f8;
-      --border: #f2f2f2;
+      --border: #e8e8ea;
       --stage-border: #f0f0f0;
       --line: #e5e7eb;
       --text: #121212;
-      --muted: #999999;
-      --faint: #b3b3b3;
+      --muted: #6b7280;
+      --faint: #9ca3af;
+      --nav-hover-bg: #f1f4f8;
       --soft: #fafafa;
       --soft-2: #f8fafc;
       --strong: #121212;
@@ -65,6 +66,7 @@
       --text: #e5e9f0;
       --muted: #8f9aab;
       --faint: #64748b;
+      --nav-hover-bg: #171d29;
       --soft: #111722;
       --soft-2: #141b27;
       --strong: #e5e9f0;
@@ -111,42 +113,46 @@
     .app-shell { display: flex; width: 100%; height: 100vh; background: var(--bg); }
 
     .sidebar {
-      width: 80px; min-width: 80px; height: 100%;
+      width: 72px; min-width: 72px; height: 100%;
       display: flex; flex-direction: column; align-items: center;
-      padding: 28px 0 20px;
+      padding: 16px 0 12px;
       background: var(--sidebar-bg);
       border-right: 1px solid var(--border);
     }
 
     .logo-ring {
       width: 36px; height: 36px; border: 2px solid var(--text); border-radius: 0;
-      display: flex; align-items: center; justify-content: center; overflow: hidden;
-      background: transparent; flex: 0 0 auto; margin-bottom: 18px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; flex: 0 0 auto; margin-bottom: 24px;
     }
-    .logo-ring img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    #logo-dot { width: 6px; height: 6px; border-radius: 0; background: var(--text); flex: 0 0 auto; }
-    .logo-ring.has-image #logo-dot { display: none; }
+    .logo-ring img { width: 20px; height: 20px; object-fit: contain; display: block; }
 
     .step-rail {
-      display: flex; flex-direction: column; gap: 10px; margin-top: 8px; flex: 1;
+      width: 100%; display: flex; flex-direction: column; align-items: center;
+      gap: 4px; flex: 1 1 auto;
     }
     .step-dot {
-      width: 8px; height: 8px; border-radius: 0; background: var(--line);
-      transition: background 0.25s, transform 0.25s;
+      width: 48px; height: 48px; flex: 0 0 48px;
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid transparent; background: transparent; color: var(--muted);
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+      transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
     }
-    .step-dot.active { background: var(--text); transform: scale(1.15); }
-    .step-dot.done { background: var(--status-ok); }
+    .step-dot.active { background: var(--text); border-color: var(--text); color: var(--bg); }
+    .step-dot.done { color: var(--text); background: var(--nav-hover-bg); border-color: var(--border); }
 
-    .sidebar-label {
-      writing-mode: vertical-rl; transform: rotate(180deg);
-      font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--muted); flex-shrink: 0; padding-bottom: 4px;
+    .sidebar-progress {
+      width: 44px; height: 36px; flex: 0 0 36px;
+      display: flex; align-items: center; justify-content: center; gap: 2px;
+      color: var(--muted); font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
     }
+    .sidebar-progress-current { color: var(--text); }
 
     .stage {
       flex: 1; min-width: 0; display: flex; flex-direction: column;
       background: var(--bg);
-      border-left: 1px solid var(--stage-border);
       box-shadow: none;
     }
 
@@ -162,6 +168,25 @@
 
     .phase { display: none; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
     .phase.active { display: flex; }
+
+    .storage-card {
+      display: flex; flex-direction: column; gap: 14px; padding: 16px;
+      border: 1px solid var(--border); background: var(--card); box-shadow: 0 10px 28px var(--shadow);
+    }
+    .storage-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .storage-summary-item { padding: 10px; border: 1px solid var(--border); background: var(--soft); }
+    .storage-summary-label { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .storage-summary-value { margin-top: 4px; color: var(--text); font-size: 12px; font-weight: 700; }
+    .storage-path-label { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .storage-path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .storage-path-input {
+      min-width: 0; width: 100%; padding: 9px 10px; border: 1px solid var(--border);
+      background: var(--soft); color: var(--text); font: 11px/1.4 'JetBrains Mono', monospace;
+    }
+    .storage-message { min-height: 18px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .storage-message.warning { color: #d97706; }
+    .storage-message.error { color: var(--status-fail); }
+    .storage-note { color: var(--muted); font-size: 11px; line-height: 1.6; }
 
     .status-row {
       display: grid; grid-template-columns: 10px minmax(0, 1fr) auto;
@@ -275,27 +300,58 @@
     <aside class="sidebar" aria-label="品牌导航">
       <div class="logo-ring" id="logo-ring" aria-hidden="true">
         <img id="logo" class="setup-logo" alt="" hidden>
-        <div id="logo-dot"></div>
       </div>
       <div class="step-rail" aria-hidden="true">
-        <span class="step-dot active" id="step-dot-1" title="Python 环境"></span>
-        <span class="step-dot" id="step-dot-2" title="CLI 工具"></span>
-        <span class="step-dot" id="step-dot-3" title="完成"></span>
+        <span class="step-dot active" id="step-dot-1" title="本地存储">01</span>
+        <span class="step-dot" id="step-dot-2" title="运行环境">02</span>
+        <span class="step-dot" id="step-dot-3" title="CLI 工具">03</span>
+        <span class="step-dot" id="step-dot-4" title="完成">04</span>
       </div>
-      <div class="sidebar-label">Setup</div>
+      <div class="sidebar-progress" aria-hidden="true">
+        <span class="sidebar-progress-current" id="sidebar-step-current">1</span><span>/</span><span>4</span>
+      </div>
     </aside>
 
     <main class="stage">
       <div class="stage-inner">
         <header class="stage-head">
-          <p class="setup-kicker" id="setup-kicker">首次启动 · 步骤 1/3</p>
-          <h1 class="setup-title" id="setup-title">正在初始化 Python 环境</h1>
+          <p class="setup-kicker" id="setup-kicker">首次启动 · 步骤 1/4</p>
+          <h1 class="setup-title" id="setup-title">设置本地数据目录</h1>
           <p class="setup-copy" id="setup-copy">
-            首次启动将自动检测或安装 Python，并从国内镜像安装依赖，全程无需手动操作。
+            项目、设置和生成的图片/视频均保存在本机。请确认一个空间充足且不会被临时清理的目录。
           </p>
         </header>
 
-        <section class="phase active" id="phase-python" aria-label="Python 环境">
+        <section class="phase active" id="phase-storage" aria-label="本地存储">
+          <div class="storage-card">
+            <div class="storage-summary">
+              <div class="storage-summary-item">
+                <div class="storage-summary-label">存储位置</div>
+                <div class="storage-summary-value">仅保存在本机</div>
+              </div>
+              <div class="storage-summary-item">
+                <div class="storage-summary-label">建议可用空间</div>
+                <div class="storage-summary-value">10 GB 以上</div>
+              </div>
+              <div class="storage-summary-item">
+                <div class="storage-summary-label">卸载策略</div>
+                <div class="storage-summary-value">默认保留数据</div>
+              </div>
+            </div>
+            <label class="storage-path-label" for="storage-path">数据目录</label>
+            <div class="storage-path-row">
+              <input class="storage-path-input" id="storage-path" type="text" spellcheck="false" aria-describedby="storage-message">
+              <button type="button" class="cli-btn" id="btn-choose-storage">选择目录</button>
+            </div>
+            <p class="storage-message" id="storage-message">正在检查目录…</p>
+            <p class="storage-note">该目录将保存元数据、素材、生成结果、工作流和本地配置。应用升级不会覆盖它；卸载应用也不会自动删除它。</p>
+            <div class="setup-actions">
+              <button type="button" class="cli-btn primary" id="btn-confirm-storage" disabled>确认并继续</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="phase" id="phase-python" aria-label="Python 环境">
           <div class="status-row pending" id="status-row">
             <span class="status-indicator" id="status-indicator"></span>
             <div>
@@ -331,7 +387,7 @@
             <path d="M12 16v-4"></path>
             <path d="M12 8h.01"></path>
           </svg>
-          <span id="setup-hint-text">系统 Python 将自动使用独立虚拟环境；CLI 工具为可选项，推荐安装 Codex 与 GPT Image 2 Helper。</span>
+          <span id="setup-hint-text">数据仅在本机读写；如果未来启用本地对象服务，也会继续使用这个目录。</span>
         </p>
       </div>
     </main>
@@ -346,8 +402,9 @@
     const spinner = document.getElementById('spinner');
     const logoEl = document.getElementById('logo');
     const logoRing = document.getElementById('logo-ring');
-    const logoDot = document.getElementById('logo-dot');
+    const sidebarStepCurrent = document.getElementById('sidebar-step-current');
     const fontFaceRules = document.getElementById('font-face-rules');
+    const phaseStorage = document.getElementById('phase-storage');
     const phasePython = document.getElementById('phase-python');
     const phaseCli = document.getElementById('phase-cli');
     const cliGrid = document.getElementById('cli-grid');
@@ -357,8 +414,12 @@
     const setupHintText = document.getElementById('setup-hint-text');
     const btnSkipCli = document.getElementById('btn-skip-cli');
     const btnFinish = document.getElementById('btn-finish');
+    const storagePath = document.getElementById('storage-path');
+    const storageMessage = document.getElementById('storage-message');
+    const btnChooseStorage = document.getElementById('btn-choose-storage');
+    const btnConfirmStorage = document.getElementById('btn-confirm-storage');
 
-    let currentPhase = 'python';
+    let currentPhase = 'storage';
     let installingCount = 0;
     const toolCards = new Map();
 
@@ -387,7 +448,8 @@
     }
 
     function setStep(step) {
-      for (let i = 1; i <= 3; i += 1) {
+      sidebarStepCurrent.textContent = String(step);
+      for (let i = 1; i <= 4; i += 1) {
         const dot = document.getElementById(`step-dot-${i}`);
         dot.classList.remove('active', 'done');
         if (i < step) dot.classList.add('done');
@@ -397,19 +459,62 @@
 
     function showPhase(phase) {
       currentPhase = phase;
+      phaseStorage.classList.toggle('active', phase === 'storage');
       phasePython.classList.toggle('active', phase === 'python');
       phaseCli.classList.toggle('active', phase === 'cli');
-      if (phase === 'python') {
+      if (phase === 'storage') {
         setStep(1);
-        setupKicker.textContent = '首次启动 · 步骤 1/3';
+        setupKicker.textContent = '首次启动 · 步骤 1/4';
+        setupTitle.textContent = '设置本地数据目录';
+        setupCopy.textContent = '项目、设置和生成的图片/视频均保存在本机。请确认一个空间充足且不会被临时清理的目录。';
+        setupHintText.textContent = '数据仅在本机读写；如果未来启用本地对象服务，也会继续使用这个目录。';
+      } else if (phase === 'python') {
+        setStep(2);
+        setupKicker.textContent = '首次启动 · 步骤 2/4';
         setupTitle.textContent = '正在初始化 Python 环境';
         setupCopy.textContent = '首次启动将自动检测或安装 Python，并从国内镜像安装依赖，全程无需手动操作。';
+        setupHintText.textContent = 'Python 会安装到应用专用目录，不会修改系统 Python 环境。';
       } else if (phase === 'cli') {
-        setStep(2);
-        setupKicker.textContent = '首次启动 · 步骤 2/3';
+        setStep(3);
+        setupKicker.textContent = '首次启动 · 步骤 3/4';
         setupTitle.textContent = '安装 CLI 工具（推荐）';
         setupCopy.textContent = '以下工具可在应用内直接使用 Codex 聊天、GPT Image 2 生图等功能。已安装的工具会自动跳过。';
         setupHintText.textContent = 'CLI 工具为可选项；Codex 与 GPT Image 2 Helper 强烈推荐。npm 安装使用国内 npmmirror 镜像。';
+      }
+    }
+
+    function showStorageValidation(result) {
+      storageMessage.classList.remove('warning', 'error');
+      if (!result?.ok) {
+        storageMessage.classList.add('error');
+        storageMessage.textContent = result?.error || '无法使用这个目录。';
+        btnConfirmStorage.disabled = true;
+        return;
+      }
+      storagePath.value = result.root || storagePath.value;
+      if (result.warning) storageMessage.classList.add('warning');
+      storageMessage.textContent = result.warning || `目录可用 · 剩余空间 ${result.freeText || '未知'}`;
+      btnConfirmStorage.disabled = false;
+    }
+
+    async function validateStoragePath() {
+      btnConfirmStorage.disabled = true;
+      storageMessage.classList.remove('warning', 'error');
+      storageMessage.textContent = '正在检查目录…';
+      try {
+        showStorageValidation(await window.setupBridge.validateStorage(storagePath.value));
+      } catch (error) {
+        showStorageValidation({ ok: false, error: error?.message || '目录检查失败。' });
+      }
+    }
+
+    async function initStorage() {
+      try {
+        const info = await window.setupBridge.getStorageInfo();
+        storagePath.value = info.root || '';
+        showStorageValidation(info);
+      } catch (error) {
+        showStorageValidation({ ok: false, error: error?.message || '无法读取默认数据目录。' });
       }
     }
 
@@ -525,7 +630,6 @@
         logoEl.onerror = () => {
           logoEl.hidden = true;
           logoRing.classList.remove('has-image');
-          logoDot.hidden = false;
         };
       } catch (_) {}
     }
@@ -534,6 +638,34 @@
       showPhase('cli');
       await loadCliTools();
     }
+
+    btnChooseStorage.addEventListener('click', async () => {
+      btnChooseStorage.disabled = true;
+      try {
+        const result = await window.setupBridge.chooseStorageFolder();
+        if (result) showStorageValidation(result);
+      } catch (error) {
+        showStorageValidation({ ok: false, error: error?.message || '目录选择失败。' });
+      } finally {
+        btnChooseStorage.disabled = false;
+      }
+    });
+
+    storagePath.addEventListener('change', validateStoragePath);
+    storagePath.addEventListener('blur', validateStoragePath);
+
+    btnConfirmStorage.addEventListener('click', async () => {
+      btnChooseStorage.disabled = true;
+      btnConfirmStorage.disabled = true;
+      btnConfirmStorage.textContent = '正在准备目录…';
+      try {
+        await window.setupBridge.completeStorage(storagePath.value);
+      } catch (error) {
+        showStorageValidation({ ok: false, error: error?.message || '数据目录初始化失败。' });
+        btnChooseStorage.disabled = false;
+        btnConfirmStorage.textContent = '确认并继续';
+      }
+    });
 
     btnSkipCli.addEventListener('click', async () => {
       btnSkipCli.disabled = true;
@@ -581,12 +713,17 @@
     });
 
     window.setupBridge?.onPhase(({ phase }) => {
+      if (phase === 'storage') showPhase('storage');
+      if (phase === 'python') showPhase('python');
       if (phase === 'cli') enterCliPhase();
       if (phase === 'launching') {
-        setStep(3);
-        setupKicker.textContent = '首次启动 · 步骤 3/3';
+        currentPhase = 'launching';
+        setStep(4);
+        setupKicker.textContent = '首次启动 · 步骤 4/4';
         setupTitle.textContent = '正在启动无限画布';
         setupCopy.textContent = '后端服务正在启动，请稍候…';
+        setupHintText.textContent = '首次启动完成后，下次打开将直接进入应用。';
+        phaseStorage.classList.remove('active');
         phaseCli.classList.remove('active');
         phasePython.classList.add('active');
         statusText.textContent = '正在启动后端…';
@@ -603,6 +740,7 @@
     window.setupBridge?.onCliLog(text => appendLog(text, cliLogEl));
 
     initBranding();
+    initStorage();
   </script>
 </body>
 </html>

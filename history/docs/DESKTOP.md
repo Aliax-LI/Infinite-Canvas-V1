@@ -21,10 +21,10 @@
 
 ## 开发者打包
 
-项目已配置国内 npm 镜像（`.npmrc`）：
+项目已配置国内 npm 镜像（`.npmrc` 仅 registry；Electron 二进制走环境变量）：
 
 ```bash
-npm install
+npm run install:cn   # 国内首装（含 Electron 镜像）
 npm run dist
 ```
 
@@ -33,7 +33,7 @@ npm run dist
 | 用途 | 镜像 |
 |------|------|
 | npm | `https://registry.npmmirror.com` |
-| Electron 二进制 | `https://npmmirror.com/mirrors/electron/` |
+| Electron 二进制 | `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`（`scripts/electron-mirror-env.js`） |
 | Windows Python 嵌入式包 | `https://npmmirror.com/mirrors/python/` |
 | macOS Python（Miniforge） | 清华 GitHub Release 镜像 |
 | pip（首启自动安装） | `https://pypi.tuna.tsinghua.edu.cn/simple` |
