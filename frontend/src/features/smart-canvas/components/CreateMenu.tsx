@@ -18,7 +18,7 @@ interface CreateMenuProps {
 }
 
 const items: { kind: CreateKind; label: string; icon: typeof Image }[] = [
-  { kind: "image", label: "图片节点", icon: Image },
+  { kind: "image", label: "导入节点", icon: Image },
   { kind: "group", label: "智能分组", icon: Layers },
   { kind: "prompt", label: "Prompt 节点", icon: MessageSquare },
   { kind: "loop", label: "Loop 节点", icon: ListOrdered },

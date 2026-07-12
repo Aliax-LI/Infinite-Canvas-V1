@@ -17,6 +17,7 @@ interface ConnectionLayerProps {
   selectedNodeId?: string | null;
   selectedIds?: string[];
   edgeStates?: Record<string, CascadeEdgeState>;
+  onRemove?: (id: string) => void;
 }
 
 export const ConnectionLayer = memo(function ConnectionLayer({
@@ -25,6 +26,7 @@ export const ConnectionLayer = memo(function ConnectionLayer({
   selectedNodeId,
   selectedIds = [],
   edgeStates = {},
+  onRemove,
 }: ConnectionLayerProps) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const selectedSet = new Set(
@@ -62,6 +64,11 @@ export const ConnectionLayer = memo(function ConnectionLayer({
             strokeDasharray={cascadeState === "running" ? "6 4" : undefined}
             data-testid={`connection-${conn.id}`}
             data-edge-state={cascadeState ?? "none"}
+            className={onRemove ? "pointer-events-auto cursor-pointer" : "pointer-events-none"}
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemove?.(conn.id);
+            }}
           />
         );
       })}

@@ -31,9 +31,13 @@ export function useGeneration() {
       try {
         let result = await submitGeneration(composer, refs);
         if (result.pending && result.taskId) {
-          result = await pollUntilDone(result.taskId, 60, 2000);
+          result = await pollUntilDone(result.taskId, 60, 2000, result.taskType);
         }
-        if (result.error) setError(result.error);
+        if (result.jimengPending) {
+          setError(result.jimengMessage || "即梦任务排队中，可继续等待或手动查询");
+        } else if (result.error) {
+          setError(result.error);
+        }
         setLastResult(result);
         return result;
       } catch (err) {

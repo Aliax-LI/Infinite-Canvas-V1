@@ -58,6 +58,7 @@ describe("legacy canvas types", () => {
       { prompt: "test", engine: "api", kind: "image", params: {} },
       ["http://a"],
     );
-    expect(payload.reference_images).toEqual(["http://a"]);
+    expect(payload.reference_images).toEqual([{ url: "http://a" }]);
+    expect(payload.provider_id).toBe("comfly");
   });
 });

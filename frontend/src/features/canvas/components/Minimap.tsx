@@ -35,6 +35,7 @@ export function Minimap({
       className="absolute bottom-4 right-4 border border-[var(--border)] bg-[var(--bg)]/80 p-1 z-10"
       style={{ width: mapW + 8, height: mapH + 8 }}
       data-testid="legacy-minimap"
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <svg width={mapW} height={mapH} className="block">
         {nodes.map((n) => (

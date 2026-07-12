@@ -69,3 +69,18 @@ export function rememberProjectId(pid: string) {
     /* ignore */
   }
 }
+
+export function sortProjects(projects: { id: string; order?: number }[]) {
+  return [...projects].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export function projectCanvasCount(
+  canvases: CanvasRecord[],
+  projectId: string,
+  serverCount?: number,
+): number {
+  if (canvases.length) {
+    return filterCanvasesByProject(canvases, projectId).length;
+  }
+  return serverCount ?? 0;
+}

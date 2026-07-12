@@ -81,6 +81,8 @@ export interface LogEntry {
   kind: string;
   url?: string;
   engine?: string;
+  status?: "success" | "failed";
+  error?: string;
 }
 
 export interface ComposerSettings {

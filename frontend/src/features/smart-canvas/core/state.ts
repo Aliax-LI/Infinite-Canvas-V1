@@ -11,6 +11,7 @@ import {
   DEFAULT_VIEWPORT,
   UNDO_LIMIT,
   createNode,
+  normalizeNode,
   type CanvasConnection,
   type ComposerSettings,
   type LogEntry,
@@ -59,7 +60,9 @@ interface SmartCanvasState {
   addNode: (partial: Partial<SmartNode> & { kind: string }) => SmartNode;
   updateNode: (id: string, patch: Partial<SmartNode>) => void;
   removeNode: (id: string) => void;
+  removeNodes: (ids: string[]) => void;
   moveNode: (id: string, x: number, y: number) => void;
+  moveNodes: (ids: string[], dx: number, dy: number) => void;
   selectNode: (id: string | null) => void;
   toggleSelectNode: (id: string, additive?: boolean) => void;
   setSelectedIds: (ids: string[]) => void;
@@ -73,10 +76,16 @@ interface SmartCanvasState {
   setComposer: (patch: Partial<ComposerSettings>) => void;
   addConnection: (conn: CanvasConnection) => void;
   removeConnection: (id: string) => void;
-  connectNodes: (fromId: string, toId: string) => void;
+  connectNodes: (fromId: string, toId: string) => boolean;
   arrangeNodes: () => void;
   layoutGroup: (groupId: string) => void;
   toggleGroupCollapse: (groupId: string) => void;
+  ungroupGroup: (groupId: string) => void;
+  appendWorkflow: (
+    nodes: SmartNode[],
+    connections: CanvasConnection[],
+    target: { x: number; y: number },
+  ) => void;
   setTitle: (title: string) => void;
   addLog: (entry: LogEntry) => void;
   applyRemoteNodes: (nodes: SmartNode[]) => void;
@@ -195,14 +204,34 @@ export const useSmartCanvasStore = create<SmartCanvasState>()(
       }),
 
     removeNode: (id) => {
+      get().removeNodes([id]);
+    },
+
+    removeNodes: (ids) => {
+      const removing = new Set(ids.filter(Boolean));
+      if (!removing.size) return;
       get().commitHistory();
       set((s) => {
-        s.nodes = s.nodes.filter((n) => n.id !== id);
+        s.nodes = s.nodes.filter((node) => !removing.has(node.id));
+        // Fork history deleteNode: scrub member_ids / group_id on survivors
+        for (const node of s.nodes) {
+          if (Array.isArray(node.member_ids)) {
+            node.member_ids = node.member_ids.filter((mid) => !removing.has(mid));
+          }
+          if (node.group_id && removing.has(node.group_id)) {
+            delete node.group_id;
+          }
+        }
         s.connections = s.connections.filter(
-          (c) => c.from !== id && c.to !== id,
+          (connection) => !removing.has(connection.from) && !removing.has(connection.to),
         );
-        if (s.selectedNodeId === id) s.selectedNodeId = null;
-        s.selectedIds = s.selectedIds.filter((sid) => sid !== id);
+        s.selectedIds = s.selectedIds.filter((id) => !removing.has(id));
+        if (s.selectedNodeId && removing.has(s.selectedNodeId)) {
+          s.selectedNodeId = s.selectedIds[s.selectedIds.length - 1] ?? null;
+        }
+        if (s.activeComposerNodeId && removing.has(s.activeComposerNodeId)) {
+          s.activeComposerNodeId = null;
+        }
         s.dirty = true;
       });
     },
@@ -213,6 +242,17 @@ export const useSmartCanvasStore = create<SmartCanvasState>()(
         if (!node) return;
         node.x = x;
         node.y = y;
+        s.dirty = true;
+      }),
+
+    moveNodes: (ids, dx, dy) =>
+      set((s) => {
+        const idSet = new Set(ids);
+        for (const node of s.nodes) {
+          if (!idSet.has(node.id)) continue;
+          node.x += dx;
+          node.y += dy;
+        }
         s.dirty = true;
       }),
 
@@ -347,17 +387,17 @@ export const useSmartCanvasStore = create<SmartCanvasState>()(
       }),
 
     connectNodes: (fromId, toId) => {
-      if (fromId === toId) return;
+      if (fromId === toId) return false;
       const s = get();
       const from = s.nodes.find((n) => n.id === fromId);
       const to = s.nodes.find((n) => n.id === toId);
-      if (!from || !to || !canAutoConnectNodes(from, to)) return;
+      if (!from || !to || !canAutoConnectNodes(from, to)) return false;
+      const exists = s.connections.some(
+        (connection) => connection.from === fromId && connection.to === toId,
+      );
+      if (exists) return true;
       get().commitHistory();
       set((st) => {
-        const exists = st.connections.some(
-          (c) => c.from === fromId && c.to === toId,
-        );
-        if (exists) return;
         st.connections.push({
           id: crypto.randomUUID(),
           from: fromId,
@@ -365,6 +405,7 @@ export const useSmartCanvasStore = create<SmartCanvasState>()(
         });
         st.dirty = true;
       });
+      return true;
     },
 
     arrangeNodes: () => {
@@ -399,6 +440,59 @@ export const useSmartCanvasStore = create<SmartCanvasState>()(
         group.collapsed = !group.collapsed;
         s.dirty = true;
       }),
+
+    ungroupGroup: (groupId) => {
+      get().commitHistory();
+      set((s) => {
+        const group = s.nodes.find((node) => node.id === groupId);
+        if (!group || group.kind !== "group") return;
+        s.nodes.forEach((node) => {
+          if (node.group_id === groupId || group.member_ids?.includes(node.id)) {
+            delete node.group_id;
+          }
+        });
+        s.nodes = s.nodes.filter((node) => node.id !== groupId);
+        s.connections = s.connections.filter(
+          (connection) => connection.from !== groupId && connection.to !== groupId,
+        );
+        s.selectedIds = [];
+        s.selectedNodeId = null;
+        if (s.activeComposerNodeId === groupId) s.activeComposerNodeId = null;
+        s.dirty = true;
+      });
+    },
+
+    appendWorkflow: (importedNodes, importedConnections, target) => {
+      if (!importedNodes.length) return;
+      get().commitHistory();
+      set((s) => {
+        const source = importedNodes.map(normalizeNode);
+        const ids = new Map(source.map((node) => [node.id, crypto.randomUUID()]));
+        const minX = Math.min(...source.map((node) => node.x));
+        const minY = Math.min(...source.map((node) => node.y));
+        const maxX = Math.max(...source.map((node) => node.x + node.width));
+        const maxY = Math.max(...source.map((node) => node.y + node.height));
+        const offsetX = target.x - (minX + (maxX - minX) / 2);
+        const offsetY = target.y - (minY + (maxY - minY) / 2);
+        const appended = source.map((node) => ({
+          ...node,
+          id: ids.get(node.id)!,
+          x: Math.round(node.x + offsetX),
+          y: Math.round(node.y + offsetY),
+          group_id: node.group_id ? ids.get(node.group_id) : undefined,
+          member_ids: node.member_ids?.map((id) => ids.get(id)).filter((id): id is string => Boolean(id)),
+        }));
+        s.nodes.push(...appended);
+        s.connections.push(...importedConnections.flatMap((connection) => {
+          const from = ids.get(connection.from);
+          const to = ids.get(connection.to);
+          return from && to ? [{ ...connection, id: crypto.randomUUID(), from, to }] : [];
+        }));
+        s.selectedIds = appended.map((node) => node.id);
+        s.selectedNodeId = appended[appended.length - 1]?.id ?? null;
+        s.dirty = true;
+      });
+    },
 
     setTitle: (title) =>
       set((s) => {

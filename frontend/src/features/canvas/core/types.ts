@@ -16,6 +16,7 @@ export const LEGACY_NODE_KINDS = [
   "prompt",
   "loop",
   "group",
+  "promptGroup",
   "output",
 ] as const;
 
@@ -33,6 +34,7 @@ export const LEGACY_NODE_LABELS: Record<LegacyNodeKind, string> = {
   prompt: "Prompt",
   loop: "循环",
   group: "分组",
+  promptGroup: "Prompt 组",
   output: "输出",
 };
 
@@ -88,9 +90,49 @@ export function isLegacyNodeKind(kind: string): kind is LegacyNodeKind {
   return (LEGACY_NODE_KINDS as readonly string[]).includes(kind);
 }
 
+const LEGACY_OUT_PORT_KINDS = new Set([
+  "image",
+  "prompt",
+  "generator",
+  "comfy",
+  "msgen",
+  "video",
+  "rh",
+  "ltxDirector",
+  "llm",
+  "loop",
+  "group",
+  "promptGroup",
+]);
+
+const LEGACY_IN_PORT_KINDS = new Set([
+  "generator",
+  "comfy",
+  "msgen",
+  "video",
+  "rh",
+  "ltxDirector",
+  "llm",
+  "output",
+  "loop",
+]);
+
+export function legacyNodeHasOutPort(kind: string): boolean {
+  return LEGACY_OUT_PORT_KINDS.has(kind);
+}
+
+export function legacyNodeHasInPort(kind: string): boolean {
+  return LEGACY_IN_PORT_KINDS.has(kind);
+}
+
 export function defaultTitleForKind(kind: string): string {
   if (isLegacyNodeKind(kind)) return LEGACY_NODE_LABELS[kind];
   return kind || "节点";
+}
+
+function positiveSize(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 export function createLegacyNode(
@@ -101,8 +143,9 @@ export function createLegacyNode(
     kind: partial.kind,
     x: partial.x ?? 100,
     y: partial.y ?? 100,
-    width: partial.width ?? LEGACY_NODE_W,
-    height: partial.height ?? LEGACY_NODE_H,
+    width: positiveSize(partial.width, LEGACY_NODE_W),
+    // 0 / NaN must not stick — wires use height/2 and would land on the top edge.
+    height: positiveSize(partial.height, LEGACY_NODE_H),
     title: partial.title ?? defaultTitleForKind(partial.kind),
     prompt: partial.prompt ?? "",
     images: partial.images ?? [],
@@ -115,17 +158,28 @@ export function normalizeLegacyNode(raw: unknown): LegacyNode {
     return createLegacyNode({ kind: "image" });
   }
   const o = raw as Record<string, unknown>;
-  const images = Array.isArray(o.images)
+  const kind = String(o.kind ?? o.type ?? "image");
+  let images = Array.isArray(o.images)
     ? (o.images as LegacyNodeImage[])
     : [];
+  const topUrl = String(o.url ?? "");
+  if (!images.length && topUrl) {
+    images = [
+      {
+        url: topUrl,
+        kind: String(o.mediaKind ?? o.media_kind ?? "image"),
+        name: String(o.name ?? ""),
+      },
+    ];
+  }
   return createLegacyNode({
     id: String(o.id ?? crypto.randomUUID()),
-    kind: String(o.kind ?? "image"),
+    kind,
     x: Number(o.x ?? 0),
     y: Number(o.y ?? 0),
-    width: Number(o.width ?? LEGACY_NODE_W),
-    height: Number(o.height ?? LEGACY_NODE_H),
-    title: String(o.title ?? o.kind ?? "节点"),
+    width: positiveSize(o.width ?? o.w, LEGACY_NODE_W),
+    height: positiveSize(o.height ?? o.h, LEGACY_NODE_H),
+    title: String(o.title ?? o.name ?? o.kind ?? o.type ?? "节点"),
     prompt: String(o.prompt ?? ""),
     images,
     settings: (o.settings as Record<string, unknown>) ?? {},

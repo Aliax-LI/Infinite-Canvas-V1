@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   canvasListReducer,
   filterCanvasesByProject,
+  projectCanvasCount,
   rememberedProjectId,
+  sortProjects,
 } from "../../src/features/canvas-list/state";
 import type { CanvasRecord } from "../../src/types/api";
 
@@ -64,5 +66,18 @@ describe("canvas-list state", () => {
 
   it("rememberedProjectId returns string", () => {
     expect(typeof rememberedProjectId()).toBe("string");
+  });
+
+  it("sortProjects orders by order field", () => {
+    const sorted = sortProjects([
+      { id: "b", name: "B", order: 2 },
+      { id: "a", name: "A", order: 1 },
+    ]);
+    expect(sorted[0].id).toBe("a");
+  });
+
+  it("projectCanvasCount uses live canvases when available", () => {
+    expect(projectCanvasCount(sample, "default")).toBe(1);
+    expect(projectCanvasCount([], "default", 5)).toBe(5);
   });
 });

@@ -1,32 +1,28 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useSmartCanvasStore } from "../core/state";
-import { isNodeVisible } from "../core/layout";
-import { usePointerDrag } from "../../../shared/hooks/usePointerDrag";
 import type { SmartNode } from "../core/types";
 
 interface CanvasWorldProps {
   width: number;
   height: number;
-  onBackgroundPan?: (dx: number, dy: number) => void;
-  onZoom?: (delta: number, centerX: number, centerY: number) => void;
-  children: (visibleNodes: SmartNode[]) => React.ReactNode;
+  /** History-style: plain wheel zooms at cursor (screen coords relative to this element). */
+  onWheelZoom?: (screenX: number, screenY: number, deltaY: number) => void;
+  children: (nodes: SmartNode[]) => React.ReactNode;
 }
 
+/**
+ * Presentational world transform. Pan / select are owned by SmartCanvasPage
+ * (history `shell` handlers) so they do not fight node drag.
+ */
 export function CanvasWorld({
-  width,
-  height,
-  onBackgroundPan,
-  onZoom,
+  width: _width,
+  height: _height,
+  onWheelZoom,
   children,
 }: CanvasWorldProps) {
   const worldRef = useRef<HTMLDivElement>(null);
   const viewport = useSmartCanvasStore((s) => s.viewport);
   const nodes = useSmartCanvasStore((s) => s.nodes);
-
-  const panHandlers = usePointerDrag(
-    (dx, dy) => onBackgroundPan?.(dx, dy),
-    { stopPropagation: false },
-  );
 
   useEffect(() => {
     if (worldRef.current) {
@@ -34,41 +30,38 @@ export function CanvasWorld({
     }
   }, [viewport]);
 
-  const visibleNodes = nodes.filter((n) =>
-    isNodeVisible(n, viewport, width, height),
-  );
-
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      e.preventDefault();
-      if (e.ctrlKey || e.metaKey) {
-        onZoom?.(e.deltaY > 0 ? -0.1 : 0.1, e.clientX, e.clientY);
-      } else {
-        onBackgroundPan?.(-e.deltaX, -e.deltaY);
-      }
-    },
-    [onBackgroundPan, onZoom],
-  );
-
   return (
     <div
-      className="relative w-full h-full overflow-hidden cursor-grab active:cursor-grabbing"
-      onWheel={handleWheel}
-      {...panHandlers}
+      className="relative w-full h-full overflow-hidden"
       data-testid="canvas-world"
       style={{
         backgroundImage:
           "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
         backgroundSize: `${24 * viewport.scale}px ${24 * viewport.scale}px`,
         backgroundPosition: `${viewport.x}px ${viewport.y}px`,
+        cursor: "default",
+      }}
+      onWheel={(e) => {
+        const target = e.target as HTMLElement;
+        if (
+          target.closest(
+            "[data-testid='composer'],[data-testid='mention-picker'],textarea,input,select,[contenteditable='true']",
+          )
+        ) {
+          return;
+        }
+        e.preventDefault();
+        const rect = e.currentTarget.getBoundingClientRect();
+        onWheelZoom?.(e.clientX - rect.left, e.clientY - rect.top, e.deltaY);
       }}
     >
       <div
         ref={worldRef}
-        className="absolute origin-top-left"
+        className="absolute origin-top-left will-change-transform"
         style={{ transformOrigin: "0 0" }}
+        data-testid="canvas-world-inner"
       >
-        {children(visibleNodes)}
+        {children(nodes)}
       </div>
     </div>
   );

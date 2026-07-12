@@ -43,18 +43,18 @@ export function ContextMenu({
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[180px] max-h-80 overflow-auto border border-[var(--border)] bg-[var(--bg)] shadow-lg py-1"
+      className="fixed z-50 min-w-[180px] max-h-80 overflow-auto border border-gray-200 bg-white rounded-lg shadow-lg py-1"
       style={{ left: x, top: y }}
       data-testid="legacy-context-menu"
     >
-      <p className="px-3 py-1 text-xs text-[var(--muted)] border-b border-[var(--border)]">
+      <p className="px-3 py-1 text-xs text-gray-500 border-b border-gray-100">
         添加节点
       </p>
       {LEGACY_NODE_KINDS.map((kind) => (
         <button
           key={kind}
           type="button"
-          className="w-full px-3 py-2 text-sm hover:bg-[var(--nav-hover-bg)] text-left"
+          className="w-full px-3 py-2 text-sm hover:bg-gray-50 text-left"
           data-testid={`legacy-context-menu-${kind}`}
           onClick={() => {
             onCreate(kind, worldX, worldY);

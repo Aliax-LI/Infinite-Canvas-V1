@@ -57,6 +57,24 @@ IMAGE_CONTAINER_KEY_HINTS = (
 IMAGE_BASE64_KEY_HINTS = ("b64_json", "base64", "image_base64", "imageBase64")
 
 
+def friendly_upstream_http_error(exc: httpx.HTTPError) -> str:
+    """Map httpx transport errors to user-facing Chinese messages."""
+    text = str(exc).strip()
+    lower = text.lower()
+    if "server disconnected without sending a response" in lower:
+        return (
+            "上游生图服务在返回结果前断开连接。"
+            "常见于参考图较大或生成耗时较长，请稍后重试或降低分辨率。"
+        )
+    if "read timeout" in lower or "timed out" in lower:
+        return "上游生图请求超时，请降低分辨率/张数或稍后重试。"
+    if "connect timeout" in lower or ("connect" in lower and "timeout" in lower):
+        return "无法连接上游生图服务，请检查网络与 API Base URL。"
+    if "connection reset" in lower or "connection refused" in lower:
+        return "与上游生图服务的连接被中断，请稍后重试。"
+    return f"请求上游生图接口失败：{text}"
+
+
 def parse_size_pair(size: str) -> tuple[int, int]:
     match = re.match(r"^\s*(\d{2,5})\s*[xX*]\s*(\d{2,5})\s*$", str(size or ""))
     if not match:
@@ -467,11 +485,18 @@ async def generate_volcengine_provider_image(prompt, size, model, reference_imag
 
 
 async def generate_modelscope_provider_image(prompt, size, model, reference_images=None, provider=None):
+    from backend.services.ms_generate_service import modelscope_image_url
+
     clean_token = modelscope_api_key()
     if not clean_token:
         raise HTTPException(status_code=400, detail="未配置 ModelScope API Key，请在 API 设置中填写。")
     width, height = parse_size_pair(size)
-    refs = [str(ref.get("url") or "").strip() for ref in (reference_images or [])[:ONLINE_IMAGE_REFERENCE_MAX] if ref.get("url")]
+    refs = []
+    for ref in (reference_images or [])[:ONLINE_IMAGE_REFERENCE_MAX]:
+        url = str(ref.get("url") or "").strip()
+        if not url:
+            continue
+        refs.append(modelscope_image_url(url, max_size=1536))
     headers = {
         "Authorization": f"Bearer {clean_token}",
         "Content-Type": "application/json",
@@ -574,7 +599,7 @@ async def build_online_image_result(payload: OnlineImageRequest) -> dict:
         friendly = friendly_image_error_detail(text, payload.size, model)
         raise HTTPException(status_code=exc.response.status_code, detail=friendly or f"上游生图接口错误：{text[:300]}") from exc
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"请求上游生图接口失败：{exc}") from exc
+        raise HTTPException(status_code=502, detail=friendly_upstream_http_error(exc)) from exc
 
     local_urls = [url for urls, _items, _raw in generated for url in (urls or []) if url]
     local_items = [item for _urls, items, _raw in generated for item in (items or []) if item.get("url")]

@@ -15,4 +15,12 @@ describe("normalizeLegacyNodes", () => {
   it("ignores non-array", () => {
     expect(normalizeLegacyNodes(null)).toEqual([]);
   });
+
+  it("maps history type+url to images", () => {
+    const nodes = normalizeLegacyNodes([
+      { id: "1", type: "image", url: "/output/a.png", name: "a.png" },
+    ]);
+    expect(nodes[0].kind).toBe("image");
+    expect(nodes[0].images[0].url).toBe("/output/a.png");
+  });
 });

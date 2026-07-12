@@ -24,9 +24,16 @@ export const canvasListApi = {
     api.delete<{ ok: boolean }>(`/api/canvases/${id}/purge`),
   updateMeta: (
     id: string,
-    payload: Partial<Pick<CanvasRecord, "title" | "icon" | "project" | "board_x" | "board_y">>,
+    payload: Partial<
+      Pick<
+        CanvasRecord,
+        "title" | "icon" | "project" | "board_x" | "board_y" | "color"
+      >
+    >,
   ) =>
     api.post<{ canvas: CanvasRecord }>(`/api/canvases/${id}/meta`, payload),
+  getCanvas: (id: string) =>
+    api.get<{ canvas: CanvasRecord }>(`/api/canvases/${id}`),
 };
 
 export const projectApi = {
@@ -34,7 +41,7 @@ export const projectApi = {
   create: (name: string) =>
     api.post<{ project: ProjectRecord }>("/api/projects", { name }),
   update: (id: string, payload: { name?: string; order?: number }) =>
-    api.put<{ project: ProjectRecord }>(`/api/projects/${id}`, payload),
+    api.post<{ project: ProjectRecord }>(`/api/projects/${id}`, payload),
   delete: (id: string) =>
     api.delete<{ ok: boolean }>(`/api/projects/${id}`),
 };

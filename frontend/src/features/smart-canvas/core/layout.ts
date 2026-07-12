@@ -133,3 +133,35 @@ export function connectionPath(
   const y2 = to.y + (to.height ?? 200) / 2;
   return { x1, y1, x2, y2 };
 }
+
+export function panViewport(
+  viewport: ViewportState,
+  dx: number,
+  dy: number,
+): ViewportState {
+  return { ...viewport, x: viewport.x + dx, y: viewport.y + dy };
+}
+
+/** History `shell` wheel: exponential zoom anchored at cursor (screen coords relative to shell). */
+export function zoomViewportAt(
+  viewport: ViewportState,
+  screenX: number,
+  screenY: number,
+  deltaY: number,
+  minScale = 0.2,
+  maxScale = 3,
+): ViewportState {
+  const beforeX = (screenX - viewport.x) / viewport.scale;
+  const beforeY = (screenY - viewport.y) / viewport.scale;
+  const factor = Math.exp(-deltaY * 0.001);
+  const nextScale = Math.min(maxScale, Math.max(minScale, viewport.scale * factor));
+  return {
+    scale: nextScale,
+    x: screenX - beforeX * nextScale,
+    y: screenY - beforeY * nextScale,
+  };
+}
+
+/** Overlay / chrome selectors that must not start pan / clear / create-menu. */
+export const SMART_UI_BLOCKER =
+  "[data-testid='composer'],[data-testid='smart-canvas-toolbar'],[data-testid='minimap'],[data-testid='create-menu'],[data-testid='workflow-transfer-modal'],[data-testid='workflow-picker-panel'],[data-testid='mention-picker'],[data-testid^='group-toolbar'],[data-testid='selection-toolbar'],[data-testid^='node-card']";

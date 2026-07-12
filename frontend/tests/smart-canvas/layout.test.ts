@@ -5,6 +5,7 @@ import {
   fitViewportToBounds,
   isNodeVisible,
   screenToWorld,
+  zoomViewportAt,
 } from "../../src/features/smart-canvas/core/layout";
 import type { SmartNode } from "../../src/features/smart-canvas/core/types";
 
@@ -54,5 +55,16 @@ describe("layout", () => {
     const world = screenToWorld(100, 100, rect, { x: 50, y: 50, scale: 2 });
     expect(world.x).toBe(25);
     expect(world.y).toBe(25);
+  });
+
+  it("zoomViewportAt anchors scale at cursor", () => {
+    const before = { x: 0, y: 0, scale: 1 };
+    const after = zoomViewportAt(before, 200, 150, -100);
+    expect(after.scale).toBeGreaterThan(1);
+    // world point under cursor stays fixed
+    const wx = (200 - before.x) / before.scale;
+    const wy = (150 - before.y) / before.scale;
+    expect(200 - wx * after.scale).toBeCloseTo(after.x, 5);
+    expect(150 - wy * after.scale).toBeCloseTo(after.y, 5);
   });
 });

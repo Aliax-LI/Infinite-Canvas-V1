@@ -27,6 +27,8 @@ describe("cascade", () => {
   it("buildCascadeOrder from start id", () => {
     const steps = buildCascadeOrder(nodes, connections, "b");
     expect(steps[0].nodeId).toBe("b");
+    expect(steps.map((step) => step.nodeId)).toEqual(["b", "c"]);
+    expect(steps[0].deps).toEqual([]);
   });
 
   it("getDownstreamNodes returns descendants", () => {
@@ -46,5 +48,10 @@ describe("cascade", () => {
     const steps = buildCascadeOrder(nodes, connections);
     const completed = new Set(["a", "b", "c"]);
     expect(canRunCascade(steps, completed)).toBeNull();
+  });
+
+  it("does not run a node after one of its dependencies fails", () => {
+    const steps = buildCascadeOrder(nodes, connections);
+    expect(canRunCascade(steps, new Set(["a"]), new Set(["a"]))).toBeNull();
   });
 });

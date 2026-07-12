@@ -1,7 +1,4 @@
 import hashlib
-import json
-import os
-import re
 import uuid
 from typing import Any
 
@@ -9,19 +6,16 @@ from fastapi import HTTPException
 
 from backend.config import (
     CANVAS_COLORS,
-    CANVAS_DIR,
     CANVAS_TRASH_RETENTION_MS,
     DEFAULT_PROJECT_ID,
-    ensure_data_dirs,
 )
-from backend.services.common import CANVAS_LOCK, now_ms
+from backend.repositories import get_canvas_repository
+from backend.repositories.json.canvas_repository import canvas_file_path
+from backend.services.common import now_ms
 
 
 def canvas_path(canvas_id: str) -> str:
-    cleaned = re.sub(r"[^a-zA-Z0-9_-]", "", canvas_id or "")
-    if not cleaned:
-        raise HTTPException(status_code=400, detail="无效的画布 ID")
-    return os.path.join(CANVAS_DIR, f"{cleaned}.json")
+    return canvas_file_path(canvas_id)
 
 
 def normalize_canvas_kind(kind: str = "classic") -> str:
@@ -52,12 +46,12 @@ def canvas_record(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _repo():
+    return get_canvas_repository()
+
+
 def save_canvas(canvas: dict[str, Any]) -> None:
-    ensure_data_dirs()
-    canvas["updated_at"] = now_ms()
-    with CANVAS_LOCK:
-        with open(canvas_path(canvas["id"]), "w", encoding="utf-8") as f:
-            json.dump(canvas, f, ensure_ascii=False, indent=2)
+    _repo().save(canvas)
 
 
 def new_canvas(
@@ -97,59 +91,23 @@ def new_canvas(
 
 
 def load_canvas(canvas_id: str) -> dict[str, Any]:
-    path = canvas_path(canvas_id)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="画布不存在")
-    with open(path, encoding="utf-8") as f:
-        canvas = json.load(f)
+    canvas = _repo().load_any(canvas_id)
     if canvas.get("deleted_at"):
         raise HTTPException(status_code=404, detail="画布已在回收站")
     return canvas
 
 
 def load_canvas_any(canvas_id: str) -> dict[str, Any]:
-    path = canvas_path(canvas_id)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="画布不存在")
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    return _repo().load_any(canvas_id)
 
 
 def cleanup_expired_canvas_trash() -> None:
-    cutoff = now_ms() - CANVAS_TRASH_RETENTION_MS
-    ensure_data_dirs()
-    with CANVAS_LOCK:
-        for filename in os.listdir(CANVAS_DIR):
-            if not filename.endswith(".json"):
-                continue
-            path = os.path.join(CANVAS_DIR, filename)
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
-                deleted_at = int(data.get("deleted_at") or 0)
-                if deleted_at and deleted_at < cutoff:
-                    os.remove(path)
-            except (OSError, json.JSONDecodeError, ValueError, TypeError):
-                continue
+    _repo().cleanup_expired_trash(CANVAS_TRASH_RETENTION_MS)
 
 
 def iter_canvas_records(include_deleted: bool = False) -> list[dict[str, Any]]:
     cleanup_expired_canvas_trash()
-    ensure_data_dirs()
-    records = []
-    for filename in os.listdir(CANVAS_DIR):
-        if not filename.endswith(".json"):
-            continue
-        try:
-            with open(os.path.join(CANVAS_DIR, filename), encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError, ValueError, TypeError):
-            continue
-        is_deleted = bool(data.get("deleted_at"))
-        if include_deleted != is_deleted:
-            continue
-        records.append(canvas_record(data))
-    return records
+    return [canvas_record(data) for data in _repo().list_documents(include_deleted=include_deleted)]
 
 
 def list_canvases() -> list[dict[str, Any]]:
@@ -186,9 +144,7 @@ def update_canvas_meta(canvas_id: str, payload: dict[str, Any]) -> dict[str, Any
         canvas["board_x"] = float(payload["board_x"])
     if payload.get("board_y") is not None:
         canvas["board_y"] = float(payload["board_y"])
-    with CANVAS_LOCK:
-        with open(canvas_path(canvas["id"]), "w", encoding="utf-8") as f:
-            json.dump(canvas, f, ensure_ascii=False, indent=2)
+    _repo().save(canvas, touch_updated_at=False)
     return canvas_record(canvas)
 
 
@@ -210,7 +166,7 @@ def update_canvas(canvas_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))
     canvas["nodes"] = payload.get("nodes") or []
     canvas["connections"] = payload.get("connections") or []
-    if canvas["kind"] == "smart":
+    if payload.get("viewport") is not None:
         canvas["viewport"] = payload.get("viewport") or {}
     else:
         canvas["viewport"] = canvas.get("viewport") or {"x": 0, "y": 0, "scale": 1}
@@ -237,12 +193,7 @@ def restore_canvas(canvas_id: str) -> dict[str, Any]:
 
 
 def purge_canvas(canvas_id: str) -> None:
-    path = canvas_path(canvas_id)
-    if os.path.exists(path):
-        os.remove(path)
-
-
-import hashlib
+    _repo().delete_file(canvas_id)
 
 
 def canvas_asset_url_value(value: Any) -> str:
@@ -365,17 +316,7 @@ def canvas_assets_index() -> dict[str, Any]:
     canvas_counts = {"all": 0, "smart": 0, "classic": 0}
     item_counts = {"all": 0, "smart": 0, "classic": 0}
     cleanup_expired_canvas_trash()
-    ensure_data_dirs()
-    for filename in os.listdir(CANVAS_DIR):
-        if not filename.endswith(".json"):
-            continue
-        try:
-            with open(os.path.join(CANVAS_DIR, filename), encoding="utf-8") as f:
-                canvas = json.load(f)
-        except (OSError, json.JSONDecodeError, ValueError, TypeError):
-            continue
-        if canvas.get("deleted_at"):
-            continue
+    for canvas in _repo().list_documents(include_deleted=False):
         record = canvas_record(canvas)
         canvas_items = extract_canvas_assets(canvas)
         record["asset_count"] = len(canvas_items)

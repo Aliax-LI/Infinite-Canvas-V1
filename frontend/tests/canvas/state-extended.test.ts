@@ -42,6 +42,26 @@ describe("legacy canvas connections", () => {
     expect(useLegacyCanvasStore.getState().connectFromId).toBeNull();
   });
 
+  it("completeConnect from in-port reverses direction", () => {
+    const gen = useLegacyCanvasStore.getState().addNode({ kind: "generator" });
+    const img = useLegacyCanvasStore.getState().addNode({ kind: "image" });
+    useLegacyCanvasStore.getState().startConnect(gen.id, "in");
+    useLegacyCanvasStore.getState().completeConnect(img.id);
+    const conns = useLegacyCanvasStore.getState().connections;
+    expect(conns).toHaveLength(1);
+    expect(conns[0].from).toBe(img.id);
+    expect(conns[0].to).toBe(gen.id);
+  });
+
+  it("removeConnection deletes knife target", () => {
+    const a = useLegacyCanvasStore.getState().addNode({ kind: "image" });
+    const b = useLegacyCanvasStore.getState().addNode({ kind: "generator" });
+    const conn = useLegacyCanvasStore.getState().addConnection(a.id, b.id);
+    expect(conn).toBeTruthy();
+    useLegacyCanvasStore.getState().removeConnection(conn!.id);
+    expect(useLegacyCanvasStore.getState().connections).toHaveLength(0);
+  });
+
   it("addNodeAtKind creates typed node", () => {
     const node = useLegacyCanvasStore.getState().addNodeAtKind("prompt", 50, 60);
     expect(node.kind).toBe("prompt");
@@ -56,7 +76,7 @@ describe("legacy canvas connections", () => {
 
   it("init loads connections", () => {
     const a = createLegacyNode({ kind: "image" });
-    const b = createLegacyNode({ kind: "output" });
+    const b = createLegacyNode({ kind: "generator" });
     useLegacyCanvasStore.getState().init({
       canvasId: "c2",
       title: "X",
@@ -64,5 +84,17 @@ describe("legacy canvas connections", () => {
       connections: [{ id: "c1", from: a.id, to: b.id }],
     });
     expect(useLegacyCanvasStore.getState().connections).toHaveLength(1);
+  });
+
+  it("init sanitizes invalid connections", () => {
+    const a = createLegacyNode({ kind: "image" });
+    const b = createLegacyNode({ kind: "prompt" });
+    useLegacyCanvasStore.getState().init({
+      canvasId: "c3",
+      title: "Y",
+      nodes: [a, b],
+      connections: [{ id: "c-bad", from: a.id, to: b.id }],
+    });
+    expect(useLegacyCanvasStore.getState().connections).toHaveLength(0);
   });
 });

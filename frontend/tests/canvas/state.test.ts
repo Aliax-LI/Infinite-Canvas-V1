@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { useLegacyCanvasStore } from "../../src/features/canvas/core/state";
+import {
+  collectDeleteIds,
+  useLegacyCanvasStore,
+} from "../../src/features/canvas/core/state";
 import { createLegacyNode } from "../../src/features/canvas/core/types";
+
+describe("collectDeleteIds", () => {
+  it("includes group and promptGroup member ids", () => {
+    const a = createLegacyNode({ id: "a", kind: "image" });
+    const b = createLegacyNode({ id: "b", kind: "prompt" });
+    const g = createLegacyNode({
+      id: "g",
+      kind: "group",
+      settings: { items: ["a", "b"] },
+    });
+    const ids = collectDeleteIds(["g"], [a, b, g]);
+    expect([...ids].sort()).toEqual(["a", "b", "g"]);
+  });
+});
 
 describe("legacy canvas state", () => {
   it("init loads nodes", () => {
@@ -34,5 +51,24 @@ describe("legacy canvas state", () => {
     useLegacyCanvasStore.getState().init({ canvasId: "c1", title: "T", nodes: [a] });
     useLegacyCanvasStore.getState().arrangeNodes();
     expect(useLegacyCanvasStore.getState().nodes[0].x).toBe(0);
+  });
+
+  it("copy paste duplicates selection", () => {
+    const node = createLegacyNode({ kind: "image", id: "n1" });
+    useLegacyCanvasStore.getState().init({ canvasId: "c1", title: "T", nodes: [node] });
+    useLegacyCanvasStore.getState().setSelectedIds(["n1"]);
+    expect(useLegacyCanvasStore.getState().copySelection()).toBe(true);
+    expect(useLegacyCanvasStore.getState().pasteClipboard(50, 50)).toBe(true);
+    expect(useLegacyCanvasStore.getState().nodes).toHaveLength(2);
+  });
+
+  it("undo restores prior nodes", () => {
+    const node = createLegacyNode({ kind: "image", id: "n1" });
+    useLegacyCanvasStore.getState().init({ canvasId: "c1", title: "T", nodes: [node] });
+    useLegacyCanvasStore.getState().setSelectedIds(["n1"]);
+    useLegacyCanvasStore.getState().removeNodes(["n1"]);
+    expect(useLegacyCanvasStore.getState().nodes).toHaveLength(0);
+    expect(useLegacyCanvasStore.getState().undo()).toBe(true);
+    expect(useLegacyCanvasStore.getState().nodes).toHaveLength(1);
   });
 });

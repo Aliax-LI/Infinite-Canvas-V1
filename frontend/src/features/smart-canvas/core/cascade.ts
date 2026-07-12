@@ -26,9 +26,25 @@ export function buildCascadeOrder(
     outgoing.get(conn.from)!.add(conn.to);
   }
 
-  const roots = startId
+  // A selected node starts an independent branch run. Its upstream nodes are
+  // deliberately out of scope, otherwise its original dependencies would
+  // make it permanently ineligible to run.
+  const scope = new Set<string>();
+  if (startId && nodeIds.has(startId)) {
+    const queue = [startId];
+    while (queue.length) {
+      const id = queue.shift()!;
+      if (scope.has(id)) continue;
+      scope.add(id);
+      for (const next of outgoing.get(id) ?? []) queue.push(next);
+    }
+  } else {
+    nodeIds.forEach((id) => scope.add(id));
+  }
+
+  const roots = startId && scope.has(startId)
     ? [startId]
-    : [...nodeIds].filter((id) => incoming.get(id)!.size === 0);
+    : [...scope].filter((id) => [...(incoming.get(id) ?? [])].every((dep) => !scope.has(dep)));
 
   const visited = new Set<string>();
   const order: CascadeStep[] = [];
@@ -39,13 +55,14 @@ export function buildCascadeOrder(
     const id = queue.shift()!;
     if (visited.has(id)) continue;
     visited.add(id);
+    if (!scope.has(id)) continue;
     order.push({
       nodeId: id,
       order: idx++,
-      deps: [...incoming.get(id)!],
+      deps: [...incoming.get(id)!].filter((dep) => scope.has(dep)),
     });
     for (const next of outgoing.get(id) ?? []) {
-      if (!visited.has(next)) queue.push(next);
+      if (scope.has(next) && !visited.has(next)) queue.push(next);
     }
   }
 
@@ -112,7 +129,10 @@ export function edgeStateForStep(
 export function canRunCascade(
   steps: CascadeStep[],
   completed: Set<string>,
+  failed: Set<string> = new Set(),
 ): CascadeStep | null {
-  const ready = canRunCascadeParallel(steps, completed, new Set());
+  const ready = canRunCascadeParallel(steps, completed, new Set()).filter(
+    (step) => !step.deps.some((dependency) => failed.has(dependency)),
+  );
   return ready[0] ?? null;
 }
