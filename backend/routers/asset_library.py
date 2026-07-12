@@ -1,12 +1,12 @@
 import os
-import tempfile
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from PIL import Image
 
 from backend.models.assets import (
     AssetAvatarRegisterRequest,
+    AssetAnnotationSettingsRequest,
     AssetLibraryAddRequest,
+    AssetLibraryAnnotateRequest,
     AssetLibraryBatchAddRequest,
     AssetLibraryBatchCropRequest,
     AssetLibraryBatchDeleteRequest,
@@ -15,11 +15,60 @@ from backend.models.assets import (
     AssetLibraryClassifyRequest,
     AssetLibraryRenameRequest,
     AssetLibraryRequest,
+    AssetLibraryTagsRequest,
 )
 from backend.services import asset_library_service
 from backend.services.media_paths import output_file_from_url
 
 router = APIRouter(tags=["asset-library"])
+
+
+def _resolve_annotation_params(payload_provider: str = "", payload_model: str = "", payload_ms_model: str = "", payload_prompt: str = ""):
+    from backend.services import app_preferences_service
+    from backend.services.api_providers_service import get_primary_provider_id
+
+    saved = app_preferences_service.asset_annotation_settings()
+    provider = str(payload_provider or saved.get("provider") or "").strip() or get_primary_provider_id()
+    model = str(payload_model or saved.get("model") or "").strip()
+    ms_model = str(payload_ms_model or saved.get("ms_model") or "").strip()
+    prompt = str(payload_prompt or saved.get("prompt") or "").strip()
+    return provider, model, ms_model, prompt
+
+
+async def _annotate_library_item(lib: dict, item: dict, *, provider: str, model: str, ms_model: str, prompt: str) -> dict:
+    from backend.services import local_assets_ai_service
+    from backend.services.media_paths import asset_library_media_kind, output_file_from_url
+
+    if asset_library_media_kind(item.get("url") or "") != "image" and item.get("kind") != "image":
+        raise HTTPException(status_code=400, detail="仅支持图片素材智能标注")
+    path = output_file_from_url(item.get("url") or "")
+    if not path or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="文件不存在")
+    classification = await local_assets_ai_service.classify_image_with_provider(path, provider, model, ms_model, prompt)
+    asset_library_service.apply_classification_to_item(item, classification)
+    return item
+
+
+@router.get("/api/asset-library/annotation-settings")
+async def get_asset_annotation_settings() -> dict:
+    from backend.services import app_preferences_service
+
+    return {"settings": app_preferences_service.asset_annotation_settings()}
+
+
+@router.patch("/api/asset-library/annotation-settings")
+async def update_asset_annotation_settings(payload: AssetAnnotationSettingsRequest) -> dict:
+    from backend.services import app_preferences_service
+
+    prefs = app_preferences_service.load_app_preferences()
+    prefs["asset_annotation"] = {
+        "provider": str(payload.provider or "").strip(),
+        "model": str(payload.model or "").strip(),
+        "ms_model": str(payload.ms_model or "").strip(),
+        "prompt": str(payload.prompt or "").strip(),
+    }
+    app_preferences_service.save_app_preferences(prefs)
+    return {"settings": prefs["asset_annotation"]}
 
 
 @router.post("/api/asset-library/libraries")
@@ -268,62 +317,55 @@ async def batch_crop_asset_library_items(payload: AssetLibraryBatchCropRequest) 
     if not ids:
         raise HTTPException(status_code=400, detail="没有选择资产")
     lib = asset_library_service.load_asset_library()
-    target_cat = None
-    if payload.target_category_id:
-        target_cat = asset_library_service.find_asset_category_in_library(lib, payload.target_category_id, payload.target_library_id)
-        if not target_cat:
-            raise HTTPException(status_code=404, detail="目标分组不存在")
-        if target_cat.get("type") != "image":
-            raise HTTPException(status_code=400, detail="目标分组不支持媒体")
-    added = []
-    for library in lib.get("libraries", []):
-        if payload.library_id and library.get("id") != payload.library_id:
-            continue
-        for cat in library.get("categories", []):
-            if cat.get("type") != "image":
-                continue
-            source_items = [item for item in (cat.get("items") or []) if item.get("id") in ids]
-            for item in source_items:
-                src = output_file_from_url(item.get("url") or "")
-                if not src or not os.path.isfile(src):
-                    continue
-                try:
-                    with Image.open(src) as img:
-                        img = img.convert("RGBA")
-                        w, h = img.size
-                        side = min(w, h)
-                        if side <= 0:
-                            continue
-                        left = max(0, (w - side) // 2)
-                        top = max(0, (h - side) // 2)
-                        cropped = img.crop((left, top, left + side, top + side))
-                        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                        tmp_path = tmp.name
-                        tmp.close()
-                        try:
-                            cropped.save(tmp_path, "PNG")
-                            base_name = os.path.splitext(item.get("name") or "asset")[0] + "_crop.png"
-                            dest_cat = target_cat or cat
-                            _, next_item = asset_library_service.make_asset_library_item(tmp_path, base_name, subdir=dest_cat.get("dir") or "")
-                            dest_cat.setdefault("items", []).append(next_item)
-                            added.append(next_item)
-                        finally:
-                            try:
-                                os.remove(tmp_path)
-                            except OSError:
-                                pass
-                except OSError:
-                    continue
+    lib, added = asset_library_service.batch_crop_library_items(
+        lib,
+        ids=ids,
+        library_id=payload.library_id or "",
+        target_category_id=payload.target_category_id or "",
+        target_library_id=payload.target_library_id or "",
+    )
     asset_library_service.save_asset_library(lib)
     return {"library": lib, "added": len(added), "items": added}
 
 
+@router.patch("/api/asset-library/items/{item_id}/tags")
+async def update_asset_library_item_tags(item_id: str, payload: AssetLibraryTagsRequest) -> dict:
+    lib = asset_library_service.load_asset_library()
+    item = asset_library_service.find_asset_item_in_library(lib, item_id, payload.library_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="资产不存在")
+    asset_library_service.set_item_tags(item, payload.tags or [])
+    asset_library_service.save_asset_library(lib)
+    return {"library": lib, "item": item}
+
+
+@router.post("/api/asset-library/items/{item_id}/annotate")
+async def annotate_asset_library_item(item_id: str, payload: AssetLibraryAnnotateRequest) -> dict:
+    lib = asset_library_service.load_asset_library()
+    item = asset_library_service.find_asset_item_in_library(lib, item_id, payload.library_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="资产不存在")
+    provider, model, ms_model, prompt = _resolve_annotation_params(
+        payload.provider, payload.model, payload.ms_model, payload.prompt
+    )
+    try:
+        await _annotate_library_item(lib, item, provider=provider, model=model, ms_model=ms_model, prompt=prompt)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(getattr(exc, "detail", "") or exc)) from exc
+    asset_library_service.save_asset_library(lib)
+    return {"library": lib, "item": item}
+
+
 @router.post("/api/asset-library/items/classify")
 async def classify_asset_library_items(payload: AssetLibraryClassifyRequest) -> dict:
-    from backend.services import local_assets_ai_service
     from backend.services.media_paths import asset_library_media_kind, output_file_from_url
 
     lib = asset_library_service.load_asset_library()
+    provider, model, ms_model, prompt = _resolve_annotation_params(
+        payload.provider, payload.model, payload.ms_model, payload.prompt
+    )
     results, changed = [], False
     for item_id in (payload.ids or [])[:80]:
         item = asset_library_service.find_asset_item_in_library(lib, item_id, payload.library_id)
@@ -342,12 +384,11 @@ async def classify_asset_library_items(payload: AssetLibraryClassifyRequest) -> 
             results.append(result)
             continue
         try:
-            classification = await local_assets_ai_service.classify_image_with_provider(
-                path, payload.provider, payload.model, payload.ms_model, payload.prompt
-            )
-            item["classification"] = classification
+            await _annotate_library_item(lib, item, provider=provider, model=model, ms_model=ms_model, prompt=prompt)
             changed = True
-            result.update({"ok": True, "classification": classification})
+            result.update({"ok": True, "classification": item.get("classification")})
+        except HTTPException as exc:
+            result["error"] = str(exc.detail)
         except Exception as exc:
             result["error"] = str(getattr(exc, "detail", "") or exc)
         results.append(result)

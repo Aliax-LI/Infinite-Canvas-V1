@@ -6,7 +6,21 @@ import uuid
 from fastapi import HTTPException, UploadFile
 
 from backend.config import MAX_UPLOAD_BYTES, ensure_data_dirs
-from backend.services.media_paths import local_upload_kind_ext, output_path_for, output_url_for
+from backend.services.media_paths import local_upload_kind_ext
+from backend.services.object_store_media import put_asset_bytes, put_asset_file
+
+
+def collect_upload_files(
+    file: UploadFile | None,
+    files: list[UploadFile] | None,
+) -> list[UploadFile]:
+    """Accept legacy singular ``file`` and current plural ``files`` form fields."""
+    uploads: list[UploadFile] = []
+    if file is not None:
+        uploads.append(file)
+    if files:
+        uploads.extend(files)
+    return uploads
 
 
 async def upload_ai_reference_files(files: list[UploadFile]) -> list[dict]:
@@ -43,11 +57,15 @@ async def upload_ai_reference_files(files: list[UploadFile]) -> list[dict]:
             if not ext:
                 ext = ".bin"
         filename = f"ai_ref_{uuid.uuid4().hex[:12]}{ext}"
-        path = output_path_for(filename, "input")
-        with open(path, "wb") as f:
-            f.write(content)
+        stored = put_asset_bytes(
+            content,
+            category="input",
+            filename=filename,
+            content_type=content_type or "application/octet-stream",
+            metadata={"original_filename": file.filename or filename},
+        )
         uploaded.append({
-            "url": output_url_for(filename, "input"),
+            "url": stored.url,
             "name": file.filename or filename,
             "kind": kind,
             "mime": content_type,
@@ -71,3 +89,24 @@ def decode_base64_payload(data: str, content_type: str) -> tuple[bytes, str]:
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="超过 50MB")
     return content, ct
+
+
+def save_base64_ai_reference(content: bytes, name: str, content_type: str) -> dict:
+    """Write decoded base64 bytes to input storage; used by router layer."""
+    ensure_data_dirs()
+    kind, ext = local_upload_kind_ext(name or "", content_type or "image/png")
+    if kind is None:
+        kind, ext = "image", ".png"
+    filename = f"ai_ref_{uuid.uuid4().hex[:12]}{ext}"
+    stored = put_asset_bytes(
+        content,
+        category="input",
+        filename=filename,
+        content_type=content_type or "image/png",
+        metadata={"original_filename": name or filename},
+    )
+    return {
+        "url": stored.url,
+        "name": name or filename,
+        "kind": kind,
+    }

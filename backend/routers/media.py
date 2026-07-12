@@ -120,14 +120,30 @@ def download_output(request: Request, url: str, name: str = "", inline: bool = F
 
 
 @router.post("/api/upload")
-async def upload_image(files: list[UploadFile] = File(...)) -> dict:
+async def upload_image(
+    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
+) -> dict:
+    uploads = media_upload.collect_upload_files(file, files)
+    if not uploads:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No files uploaded. Send multipart/form-data with field name "
+                "'files' (or legacy 'file'). Do not set Content-Type manually."
+            ),
+        )
     uploaded_files = []
     files_content = []
-    for file in files:
-        content = await file.read()
-        files_content.append((file, content))
-    for file, content in files_content:
-        comfy_name = upload_image_to_comfyui(file.filename or "upload.png", content, file.content_type or "image/png")
+    for upload in uploads:
+        content = await upload.read()
+        files_content.append((upload, content))
+    for upload, content in files_content:
+        comfy_name = upload_image_to_comfyui(
+            upload.filename or "upload.png",
+            content,
+            upload.content_type or "image/png",
+        )
         if comfy_name:
             uploaded_files.append({"comfy_name": comfy_name})
         else:
@@ -143,14 +159,8 @@ async def upload_ai_reference(files: list[UploadFile] = File(...)) -> dict:
 @router.post("/api/ai/upload-base64")
 async def upload_ai_base64(payload: Base64UploadRequest) -> dict:
     content, ct = media_upload.decode_base64_payload(payload.data, payload.content_type)
-    kind, ext = local_upload_kind_ext(payload.name or "", ct or "image/png")
-    if kind is None:
-        kind, ext = "image", ".png"
-    filename = f"ai_ref_{uuid.uuid4().hex[:12]}{ext}"
-    path = output_path_for(filename, "input")
-    with open(path, "wb") as f:
-        f.write(content)
-    return {"files": [{"url": output_url_for(filename, "input"), "name": payload.name or filename, "kind": kind}]}
+    file_info = media_upload.save_base64_ai_reference(content, payload.name or "", ct or "image/png")
+    return {"files": [file_info]}
 
 
 @router.post("/api/comfyui/upload-base64")

@@ -102,9 +102,7 @@ async def import_local_assets_from_urls(payload: LocalAssetUrlImportRequest) -> 
                     base = base[:-len(ext)].rstrip(".") or ("web-video" if kind == "video" else "web-image")
                 filename = f"up_{uuid.uuid4().hex[:12]}_{base}{ext}"
                 rel_name = f"{folder_rel}/{filename}".lstrip("/")
-                path = os.path.join(folder_abs, filename)
-                with open(path, "wb") as f:
-                    f.write(content)
+                local_assets_service.write_bytes_to_folder(folder_abs, filename, content)
                 item = local_assets_service.local_upload_item(rel_name)
                 uploaded.append(item)
                 result.update({"ok": True, "file": rel_name, "item": item})
@@ -265,9 +263,7 @@ async def caption_local_assets(payload: LocalAssetCaptionRequest) -> dict:
             caption, resolved_model = await local_assets_ai_service.caption_image_with_provider(
                 path, prompt, payload.provider, payload.model, payload.ms_model
             )
-            txt_path = local_assets_service.local_upload_caption_path(filename)
-            with open(txt_path, "w", encoding="utf-8", newline="") as f:
-                f.write(caption)
+            txt_path = local_assets_service.write_upload_caption(filename, caption)
             item.update({"ok": True, "name": filename, "caption": caption, "caption_file": os.path.basename(txt_path), "model": resolved_model})
             ok_count += 1
         except HTTPException as exc:
@@ -321,9 +317,7 @@ async def save_local_asset_caption(payload: LocalAssetCaptionSaveRequest) -> dic
     if kind != "image":
         raise HTTPException(status_code=400, detail="仅支持图片素材保存提示词")
     caption = str(payload.caption or "")[:100000]
-    txt_path = local_assets_service.local_upload_caption_path(filename)
-    with open(txt_path, "w", encoding="utf-8", newline="") as f:
-        f.write(caption)
+    txt_path = local_assets_service.write_upload_caption(filename, caption)
     return {"ok": True, "caption": caption, "caption_file": os.path.basename(txt_path)}
 
 

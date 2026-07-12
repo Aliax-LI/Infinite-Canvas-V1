@@ -27,6 +27,15 @@ def sanitize_asset_name(name: str, fallback: str = "asset") -> str:
 
 
 def output_storage(category: str = "output") -> tuple[str, str]:
+    from backend.storage.local_object_store import LocalObjectStore
+    from backend.storage.object_store_factory import get_object_store
+
+    subdir = "input" if category == "input" else "output"
+    store = get_object_store()
+    if isinstance(store, LocalObjectStore):
+        folder = store.root / subdir
+        folder.mkdir(parents=True, exist_ok=True)
+        return str(folder), subdir
     return (str(OUTPUT_INPUT_DIR), "input") if category == "input" else (str(OUTPUT_OUTPUT_DIR), "output")
 
 
@@ -40,7 +49,24 @@ def output_path_for(filename: str, category: str = "output") -> str:
     return os.path.join(folder, filename)
 
 
+def library_storage_dir() -> str:
+    from backend.storage.local_object_store import LocalObjectStore
+    from backend.storage.object_store_factory import get_object_store
+
+    store = get_object_store()
+    if isinstance(store, LocalObjectStore):
+        folder = store.root / "library"
+        folder.mkdir(parents=True, exist_ok=True)
+        return str(folder)
+    return str(ASSET_LIBRARY_DIR)
+
+
 def output_file_from_url(url: str | dict | None) -> str | None:
+    from backend.services.object_store_media import resolve_asset_filesystem_path
+
+    object_path = resolve_asset_filesystem_path(url)
+    if object_path:
+        return object_path
     if isinstance(url, dict):
         url = url.get("url", "")
     if not url or not (str(url).startswith("/output/") or str(url).startswith("/assets/")):
@@ -84,6 +110,15 @@ def local_media_file_by_basename(name: str) -> str | None:
     safe = os.path.basename(urllib.parse.unquote(str(name or "")))
     if not safe:
         return None
+    from backend.storage.local_object_store import LocalObjectStore
+    from backend.storage.object_store_factory import get_object_store
+
+    store = get_object_store()
+    if isinstance(store, LocalObjectStore):
+        for subdir in ("output", "input"):
+            path = store.filesystem_path(f"{subdir}/{safe}")
+            if path.is_file():
+                return str(path)
     roots = [
         OUTPUT_OUTPUT_DIR,
         OUTPUT_INPUT_DIR,

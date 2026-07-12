@@ -5,7 +5,14 @@ from threading import Lock
 
 from fastapi import HTTPException
 
-from backend.config import API_PROVIDERS_PATH, RUNNINGHUB_DEFAULT_BASE_URL, ensure_data_dirs
+from backend.config import (
+    API_PROVIDERS_PATH,
+    RUNNINGHUB_DEFAULT_BASE_URL,
+    VOLCENGINE_DEFAULT_BASE_URL,
+    VOLCENGINE_DEFAULT_PROJECT_NAME,
+    VOLCENGINE_DEFAULT_REGION,
+    ensure_data_dirs,
+)
 
 GLOBAL_CONFIG_LOCK = Lock()
 PROVIDER_ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,39}$")
@@ -38,7 +45,9 @@ def bearer_auth_value(value: str) -> str:
 
 
 def provider_env_key_value(provider_id: str) -> str:
-    return os.getenv(provider_key_env(provider_id), "")
+    from backend.services.secrets_service import get_secret
+
+    return get_secret(provider_key_env(provider_id))
 
 
 def is_modelscope_context(provider_id: str = "", base_url: str = "") -> bool:
@@ -95,7 +104,71 @@ def default_api_providers() -> list[dict]:
     return [
         {"id": "modelscope", "name": "ModelScope", "base_url": "https://api-inference.modelscope.cn/v1", "protocol": "openai", "enabled": True, "primary": False, "image_models": [], "chat_models": [], "video_models": [], "rh_apps": [], "rh_workflows": [], "ms_loras": []},
         {"id": "runninghub", "name": "RunningHub", "base_url": RUNNINGHUB_DEFAULT_BASE_URL, "protocol": "runninghub", "enabled": True, "primary": False, "image_models": [], "chat_models": [], "video_models": [], "rh_apps": [], "rh_workflows": []},
+        {
+            "id": "volcengine",
+            "name": "火山引擎",
+            "base_url": VOLCENGINE_DEFAULT_BASE_URL,
+            "protocol": "volcengine",
+            "enabled": True,
+            "primary": False,
+            "image_models": [],
+            "chat_models": [],
+            "video_models": [],
+            "rh_apps": [],
+            "rh_workflows": [],
+            "volcengine_project_name": VOLCENGINE_DEFAULT_PROJECT_NAME,
+            "volcengine_region": VOLCENGINE_DEFAULT_REGION,
+        },
     ]
+
+
+def merge_default_api_providers(providers: list[dict], inject_missing: bool = True) -> list[dict]:
+    """Ensure fixed entry platforms (modelscope, runninghub, volcengine) are always present."""
+    merged = [dict(item) for item in providers]
+    defaults = {item["id"]: item for item in default_api_providers()}
+
+    for provider_id in ("modelscope", "runninghub", "volcengine"):
+        default = defaults.get(provider_id)
+        if not default:
+            continue
+        current = next((item for item in merged if item.get("id") == provider_id), None)
+        if not current:
+            if provider_id == "volcengine":
+                legacy = next(
+                    (
+                        item
+                        for item in merged
+                        if item.get("id") != "volcengine"
+                        and str(item.get("protocol") or "").lower() == "volcengine"
+                    ),
+                    None,
+                )
+                if legacy:
+                    merged.append({
+                        **default,
+                        "base_url": legacy.get("base_url") or default["base_url"],
+                        "image_models": list(legacy.get("image_models") or []),
+                        "chat_models": list(legacy.get("chat_models") or []),
+                        "video_models": list(legacy.get("video_models") or []),
+                    })
+                    continue
+            merged.append(dict(default))
+        else:
+            if not current.get("base_url"):
+                current["base_url"] = default["base_url"]
+            if provider_id == "runninghub" and (not current.get("protocol") or current.get("protocol") == "openai"):
+                current["protocol"] = "runninghub"
+            if provider_id == "volcengine":
+                current["protocol"] = "volcengine"
+                current["volcengine_project_name"] = (
+                    str(current.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip()
+                    or VOLCENGINE_DEFAULT_PROJECT_NAME
+                )
+                current["volcengine_region"] = (
+                    str(current.get("volcengine_region") or VOLCENGINE_DEFAULT_REGION).strip()
+                    or VOLCENGINE_DEFAULT_REGION
+                )
+    return merged
 
 
 def normalize_provider(item: dict) -> dict:
@@ -108,7 +181,14 @@ def normalize_provider(item: dict) -> dict:
     if provider_id == "runninghub":
         protocol = "runninghub"
         base_url = base_url or RUNNINGHUB_DEFAULT_BASE_URL
-    return {
+    volc_project = re.sub(r"\s+", " ", str(item.get("volcengine_project_name") or "").strip())[:80]
+    volc_region = re.sub(r"\s+", " ", str(item.get("volcengine_region") or "").strip())[:40]
+    if provider_id == "volcengine":
+        protocol = "volcengine"
+        base_url = base_url or VOLCENGINE_DEFAULT_BASE_URL
+        volc_project = volc_project or VOLCENGINE_DEFAULT_PROJECT_NAME
+        volc_region = volc_region or VOLCENGINE_DEFAULT_REGION
+    normalized = {
         "id": provider_id, "name": name, "base_url": base_url, "protocol": protocol,
         "enabled": bool(item.get("enabled", True)), "primary": bool(item.get("primary", False)),
         "image_models": list(item.get("image_models") or []), "chat_models": list(item.get("chat_models") or []),
@@ -116,26 +196,35 @@ def normalize_provider(item: dict) -> dict:
         "rh_workflows": list(item.get("rh_workflows") or []),
         "ms_loras": normalize_ms_loras(item.get("ms_loras") or []) if provider_id == "modelscope" else [],
     }
+    if provider_id == "volcengine":
+        normalized["volcengine_project_name"] = volc_project
+        normalized["volcengine_region"] = volc_region
+    return normalized
 
 
 def load_api_providers() -> list[dict]:
+    from backend.repositories import get_api_providers_repository
+
     ensure_data_dirs()
     defaults = default_api_providers()
-    if not API_PROVIDERS_PATH.is_file():
+    raw = get_api_providers_repository().load_all()
+    if not raw:
         return defaults
     try:
-        with open(API_PROVIDERS_PATH, encoding="utf-8") as f:
-            raw = json.load(f)
-        return [normalize_provider(item) for item in raw if isinstance(item, dict)] or defaults
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+        providers = [normalize_provider(item) for item in raw if isinstance(item, dict)]
+        return merge_default_api_providers(providers or defaults, inject_missing=not bool(providers))
+    except HTTPException:
+        raise
+    except (ValueError, TypeError):
         return defaults
 
 
 def save_api_providers(providers: list[dict]) -> None:
+    from backend.repositories import get_api_providers_repository
+
     ensure_data_dirs()
     with GLOBAL_CONFIG_LOCK:
-        with open(API_PROVIDERS_PATH, "w", encoding="utf-8") as f:
-            json.dump(providers, f, ensure_ascii=False, indent=2)
+        get_api_providers_repository().save_all(providers)
 
 
 
@@ -178,7 +267,9 @@ def mask_secret(value: str) -> str:
 
 
 def runninghub_wallet_key_value() -> str:
-    return os.getenv(runninghub_wallet_key_env(), "")
+    from backend.services.secrets_service import get_secret
+
+    return get_secret(runninghub_wallet_key_env())
 
 
 def volcengine_access_key_env() -> str:
@@ -187,6 +278,18 @@ def volcengine_access_key_env() -> str:
 
 def volcengine_secret_key_env() -> str:
     return "VOLCENGINE_SECRET_ACCESS_KEY"
+
+
+def volcengine_access_key_value() -> str:
+    from backend.services.secrets_service import get_secret
+
+    return get_secret(volcengine_access_key_env())
+
+
+def volcengine_secret_key_value() -> str:
+    from backend.services.secrets_service import get_secret
+
+    return get_secret(volcengine_secret_key_env())
 
 
 def public_provider(provider: dict) -> dict:
@@ -204,6 +307,19 @@ def public_provider(provider: dict) -> dict:
             "wallet_key_preview": mask_secret(wallet_key),
             "wallet_key_env": runninghub_wallet_key_env(),
         })
+    if provider.get("id") == "volcengine":
+        ak = volcengine_access_key_value()
+        sk = volcengine_secret_key_value()
+        item.update({
+            "has_volcengine_access_key": bool(ak),
+            "volcengine_access_key_preview": mask_secret(ak),
+            "volcengine_access_key_env": volcengine_access_key_env(),
+            "has_volcengine_secret_key": bool(sk),
+            "volcengine_secret_key_preview": mask_secret(sk),
+            "volcengine_secret_key_env": volcengine_secret_key_env(),
+            "volcengine_project_name": provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME,
+            "volcengine_region": provider.get("volcengine_region") or VOLCENGINE_DEFAULT_REGION,
+        })
     return item
 
 
@@ -213,9 +329,11 @@ def public_api_providers() -> list[dict]:
 
 def save_providers_payload(payload) -> list[dict]:
     from backend.services.env_helper import update_env_values
+    from backend.services.secrets_service import set_secrets
 
     providers: list[dict] = []
     env_updates: dict[str, str] = {}
+    secret_updates: dict[str, str] = {}
     raw_primary_flags = [bool(getattr(item, "primary", False)) for item in payload]
 
     for item in payload:
@@ -226,29 +344,29 @@ def save_providers_payload(payload) -> list[dict]:
 
         key_env = provider_key_env(provider["id"])
         if item.clear_key:
-            env_updates[key_env] = ""
+            secret_updates[key_env] = ""
         elif item.api_key is not None and item.api_key.strip():
-            env_updates[key_env] = item.api_key.strip()
+            secret_updates[key_env] = item.api_key.strip()
 
         if provider["id"] == "runninghub":
             wallet_env = runninghub_wallet_key_env()
             if item.clear_wallet_key:
-                env_updates[wallet_env] = ""
+                secret_updates[wallet_env] = ""
             elif item.wallet_api_key is not None and item.wallet_api_key.strip():
-                env_updates[wallet_env] = item.wallet_api_key.strip()
+                secret_updates[wallet_env] = item.wallet_api_key.strip()
             provider["protocol"] = "runninghub"
 
         if provider["id"] == "volcengine":
             ak_env = volcengine_access_key_env()
             sk_env = volcengine_secret_key_env()
             if item.clear_volcengine_access_key_id:
-                env_updates[ak_env] = ""
+                secret_updates[ak_env] = ""
             elif item.volcengine_access_key_id is not None and item.volcengine_access_key_id.strip():
-                env_updates[ak_env] = item.volcengine_access_key_id.strip()
+                secret_updates[ak_env] = item.volcengine_access_key_id.strip()
             if item.clear_volcengine_secret_access_key:
-                env_updates[sk_env] = ""
+                secret_updates[sk_env] = ""
             elif item.volcengine_secret_access_key is not None and item.volcengine_secret_access_key.strip():
-                env_updates[sk_env] = item.volcengine_secret_access_key.strip()
+                secret_updates[sk_env] = item.volcengine_secret_access_key.strip()
             provider["protocol"] = "volcengine"
 
         if provider["id"] == "comfly":
@@ -270,6 +388,8 @@ def save_providers_payload(payload) -> list[dict]:
             provider["primary"] = i == winner
 
     save_api_providers(providers)
+    if secret_updates:
+        set_secrets(secret_updates)
     if env_updates:
         update_env_values(env_updates)
     return providers

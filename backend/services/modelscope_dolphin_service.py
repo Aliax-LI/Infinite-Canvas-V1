@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
 import httpx
 
+from backend.services.api_providers_service import bearer_auth_value
+
 logger = logging.getLogger(__name__)
+
+MODELSCOPE_CHAT_PROBE_CONCURRENCY = 6
+MODELSCOPE_CHAT_PROBE_TIMEOUT = 20.0
+MODELSCOPE_UNSUPPORTED_CHAT_MARKER = "has no provider supported"
 
 DOLPHIN_MODELS_URL = "https://www.modelscope.cn/api/v1/dolphin/models"
 DOLPHIN_PAGE_SIZE = 100
@@ -312,13 +319,90 @@ async def fetch_dolphin_image_model_ids() -> list[str]:
     return parse_mainstream_dolphin_models(raw)
 
 
-def merge_modelscope_fetch_result(result: dict, dolphin_image_ids: list[str]) -> dict:
+def is_modelscope_unsupported_chat_error(text: str) -> bool:
+    return MODELSCOPE_UNSUPPORTED_CHAT_MARKER in str(text or "").lower()
+
+
+def modelscope_chat_completions_url(base_url: str) -> str:
+    root = str(base_url or "https://api-inference.modelscope.cn/v1").strip().rstrip("/")
+    if not root.endswith("/v1"):
+        root = f"{root}/v1"
+    return f"{root}/chat/completions"
+
+
+async def _probe_one_modelscope_chat_model(
+    client: httpx.AsyncClient,
+    url: str,
+    headers: dict[str, str],
+    model: str,
+) -> tuple[str, bool]:
+    """Return (model_id, supported). Only filter explicit no-provider errors."""
+    try:
+        response = await client.post(
+            url,
+            headers=headers,
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 1,
+                "stream": False,
+            },
+        )
+        body = response.text or ""
+        if response.status_code < 400:
+            return model, True
+        if is_modelscope_unsupported_chat_error(body):
+            return model, False
+        # Keep models on ambiguous upstream errors (rate limit, transient, etc.).
+        return model, True
+    except httpx.HTTPError as exc:
+        logger.debug("ModelScope chat probe failed for %s: %s", model, exc)
+        return model, True
+
+
+async def filter_supported_modelscope_chat_models(
+    chat_models: list[str],
+    base_url: str,
+    api_key: str,
+) -> tuple[list[str], list[str]]:
+    """Probe chat/completions and drop models that ModelScope rejects."""
+    models = sorted({str(model).strip() for model in chat_models if str(model or "").strip()})
+    if not models or not str(api_key or "").strip():
+        return models, []
+
+    url = modelscope_chat_completions_url(base_url)
+    headers = {
+        "Authorization": bearer_auth_value(api_key),
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    semaphore = asyncio.Semaphore(MODELSCOPE_CHAT_PROBE_CONCURRENCY)
+
+    async with httpx.AsyncClient(timeout=MODELSCOPE_CHAT_PROBE_TIMEOUT) as client:
+        async def run(model: str) -> tuple[str, bool]:
+            async with semaphore:
+                return await _probe_one_modelscope_chat_model(client, url, headers, model)
+
+        results = await asyncio.gather(*(run(model) for model in models))
+
+    supported = sorted(model for model, ok in results if ok)
+    filtered = sorted(model for model, ok in results if not ok)
+    return supported, filtered
+
+
+def merge_modelscope_fetch_result(
+    result: dict,
+    dolphin_image_ids: list[str],
+    *,
+    filtered_chat_models: list[str] | None = None,
+) -> dict:
     """Merge dolphin catalog image models with API-Inference /v1/models response."""
     dolphin_set = set(dolphin_image_ids)
     inference_image = set(result.get("image_models") or [])
     inference_chat = list(result.get("chat_models") or [])
     inference_video = list(result.get("video_models") or [])
     inference_all = set(result.get("all") or [])
+    filtered_chat = sorted({str(model).strip() for model in (filtered_chat_models or []) if str(model or "").strip()})
 
     image_models = sorted(dolphin_set | inference_image)
     chat_models = sorted(m for m in inference_chat if m not in dolphin_set)
@@ -332,6 +416,8 @@ def merge_modelscope_fetch_result(result: dict, dolphin_image_ids: list[str]) ->
         parts.append(f"对话模型 {len(chat_models)} 个（/v1/models）")
     if video_models:
         parts.append(f"视频模型 {len(video_models)} 个")
+    if filtered_chat:
+        parts.append(f"已过滤 {len(filtered_chat)} 个不可调用对话模型")
     message = f"已拉取 {len(all_models)} 个模型"
     if parts:
         message = f"{message}：{'，'.join(parts)}"
@@ -346,14 +432,37 @@ def merge_modelscope_fetch_result(result: dict, dolphin_image_ids: list[str]) ->
         "all": all_models,
         "message": message,
         "dolphin_image_count": len(dolphin_set),
+        "filtered_chat_models": filtered_chat,
     }
 
 
-async def enrich_modelscope_fetch_result(result: dict) -> dict:
+async def enrich_modelscope_fetch_result(
+    result: dict,
+    *,
+    base_url: str = "",
+    api_key: str = "",
+) -> dict:
+    chat_models = list(result.get("chat_models") or [])
+    supported_chat, filtered_chat = await filter_supported_modelscope_chat_models(
+        chat_models,
+        base_url,
+        api_key,
+    )
+    if filtered_chat:
+        filtered_set = set(filtered_chat)
+        result = {
+            **result,
+            "chat_models": supported_chat,
+            "all": sorted(model for model in (result.get("all") or []) if model not in filtered_set),
+        }
+    else:
+        result = {**result, "chat_models": supported_chat}
+
     try:
         dolphin_ids = await fetch_dolphin_image_model_ids()
     except Exception as exc:
         logger.warning("ModelScope dolphin catalog fetch failed: %s", exc)
         suffix = f"；生图模型库拉取失败：{str(exc)[:120]}"
-        return {**result, "message": f"{result.get('message') or '拉取完成'}{suffix}"}
-    return merge_modelscope_fetch_result(result, dolphin_ids)
+        merged = merge_modelscope_fetch_result(result, [], filtered_chat_models=filtered_chat)
+        return {**merged, "message": f"{merged.get('message') or '拉取完成'}{suffix}"}
+    return merge_modelscope_fetch_result(result, dolphin_ids, filtered_chat_models=filtered_chat)

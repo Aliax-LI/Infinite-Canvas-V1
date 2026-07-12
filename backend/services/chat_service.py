@@ -75,13 +75,23 @@ def unwrap_apimart_response(raw: dict) -> dict:
     return raw
 
 
-def text_from_chat_response(data: dict) -> str:
-    data = unwrap_apimart_response(data)
-    choices = data.get("choices") or []
-    if not choices:
-        return ""
-    message = choices[0].get("message") or {}
-    content = message.get("content", "")
+_THINK_TAG_RE = re.compile(
+    r"<think>[\s\S]*?</think>|<thinking>[\s\S]*?</thinking>",
+    re.IGNORECASE,
+)
+# Strong draw/create intents: used when a weak router returns action=chat
+AGENT_STRONG_GENERATE_RE = re.compile(
+    r"绘制|画画|作画|描绘|画一[张幅个]|画个|画张|生成一[张幅个]|生成张|出图|生图|"
+    r"draw\s+(a|an|me)|generate\s+(a|an)\s+image|create\s+(a|an)\s+image",
+    re.IGNORECASE,
+)
+
+
+def strip_think_tags(text: str) -> str:
+    return _THINK_TAG_RE.sub("", str(text or "")).strip()
+
+
+def _text_from_content_field(content) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -89,8 +99,30 @@ def text_from_chat_response(data: dict) -> str:
         for item in content:
             if isinstance(item, dict):
                 parts.append(item.get("text") or item.get("content") or "")
+            elif isinstance(item, str):
+                parts.append(item)
         return "\n".join(part for part in parts if part)
+    if content is None:
+        return ""
     return str(content)
+
+
+def text_from_chat_response(data: dict) -> str:
+    """Extract assistant text; tolerate thinking models with empty content."""
+    data = unwrap_apimart_response(data)
+    choices = data.get("choices") or []
+    if not choices:
+        return ""
+    message = choices[0].get("message") or {}
+    content = strip_think_tags(_text_from_content_field(message.get("content", "")))
+    if content:
+        return content
+    # Qwen3 / thinking models often put the final answer in reasoning fields
+    for key in ("reasoning_content", "reasoning", "thinking"):
+        alt = strip_think_tags(_text_from_content_field(message.get(key, "")))
+        if alt:
+            return alt
+    return ""
 
 
 def api_headers(provider: dict | None = None, model: str = "", json_body: bool = True) -> dict[str, str]:
@@ -104,7 +136,7 @@ def api_headers(provider: dict | None = None, model: str = "", json_body: bool =
     else:
         api_key = AI_API_KEY
         if not api_key:
-            raise HTTPException(status_code=400, detail="未配置 COMFLY_API_KEY，请在 API/.env 中填写。")
+            raise HTTPException(status_code=400, detail="未配置 COMFLY_API_KEY，请在设置页 API 中填写。")
     if provider and effective_protocol(provider, model) == "gemini":
         headers = {"Accept": "application/json", "x-goog-api-key": api_key}
     else:
@@ -434,8 +466,9 @@ CHAT_RATIO_SIZE_OPTIONS = {
 
 AGENT_ACTIONS = {"chat", "generate_image", "edit_image"}
 AGENT_IMAGE_KEYWORDS = [
-    "生成", "画", "出图", "生图", "图片", "图像", "海报", "头像", "壁纸",
-    "插画", "照片", "photo", "image", "picture", "draw", "generate",
+    "生成", "画", "绘制", "画画", "作画", "描绘", "出图", "生图", "图片", "图像",
+    "海报", "头像", "壁纸", "插画", "照片",
+    "photo", "image", "picture", "draw", "paint", "sketch", "generate",
 ]
 AGENT_EDIT_KEYWORDS = [
     "修改", "改成", "换成", "调整", "优化", "编辑", "重绘", "上一张", "刚才",
@@ -574,7 +607,7 @@ def heuristic_agent_decision(message: str, refs: list[dict], has_previous_image:
 
 
 def parse_agent_decision(raw_text: str, message: str, refs: list[dict], has_previous_image: bool) -> dict:
-    text = str(raw_text or "").strip()
+    text = strip_think_tags(raw_text)
     data = None
     if text:
         match = re.search(r"\{[\s\S]*\}", text)
@@ -593,6 +626,13 @@ def parse_agent_decision(raw_text: str, message: str, refs: list[dict], has_prev
     reply = str(data.get("reply") or "").strip()
     if action == "edit_image" and not (refs or has_previous_image):
         action = "generate_image" if any(key.lower() in str(message).lower() for key in AGENT_IMAGE_KEYWORDS) else "chat"
+    # Thinking / weak routers often return chat for clear draw requests (e.g. 「绘制」)
+    if action == "chat" and heuristic["action"] == "generate_image" and AGENT_STRONG_GENERATE_RE.search(str(message or "")):
+        action = "generate_image"
+        prompt = prompt or heuristic["prompt"] or message
+    elif action == "chat" and heuristic["action"] == "edit_image":
+        action = "edit_image"
+        prompt = prompt or heuristic["prompt"] or message
     return {"action": action, "prompt": prompt, "reply": reply}
 
 
@@ -729,6 +769,19 @@ def text_delta_from_chat_chunk(data: dict) -> str:
                 parts.append(item.get("text") or item.get("content") or "")
         return "".join(parts)
     return str(content) if content else ""
+
+
+def reasoning_delta_from_chat_chunk(data: dict) -> str:
+    """Collect thinking tokens for empty-content fallback; do not stream to UI."""
+    choices = data.get("choices") or []
+    if not choices:
+        return ""
+    delta = choices[0].get("delta") or {}
+    for key in ("reasoning_content", "reasoning"):
+        alt = delta.get(key, "")
+        if isinstance(alt, str) and alt:
+            return alt
+    return ""
 
 
 def sse_event(data: dict) -> str:
@@ -960,6 +1013,7 @@ async def chat_stream_endpoint(payload: ChatRequest, user_id: str):
 
     async def stream():
         content_parts: list[str] = []
+        reasoning_parts: list[str] = []
         raw_usage = None
         yield sse_event({"type": "meta", "conversation": conversation})
         try:
@@ -993,14 +1047,19 @@ async def chat_stream_endpoint(payload: ChatRequest, user_id: str):
                         if delta:
                             content_parts.append(delta)
                             yield sse_event({"type": "delta", "delta": delta})
+                        else:
+                            reasoning = reasoning_delta_from_chat_chunk(chunk)
+                            if reasoning:
+                                reasoning_parts.append(reasoning)
         except httpx.HTTPError as exc:
             yield sse_event({"type": "error", "detail": f"请求上游接口失败：{exc}"})
             return
 
+        final_text = "".join(content_parts).strip() or strip_think_tags("".join(reasoning_parts))
         assistant_message = {
             "id": uuid.uuid4().hex,
             "role": "assistant",
-            "content": "".join(content_parts).strip() or "接口返回了空回复。",
+            "content": final_text or "接口返回了空回复。",
             "created_at": now_ms(),
             "model": model,
             "raw_usage": raw_usage,
@@ -1008,6 +1067,9 @@ async def chat_stream_endpoint(payload: ChatRequest, user_id: str):
         conversation["messages"].append(assistant_message)
         conversation["updated_at"] = now_ms()
         conversation_service.save_conversation(user_id, conversation)
+        if final_text and not content_parts:
+            # Thinking-only stream: emit once so the UI typewriter can show the answer
+            yield sse_event({"type": "delta", "delta": final_text})
         yield sse_event({"type": "done", "conversation": conversation, "message": assistant_message})
 
     return StreamingResponse(stream(), media_type="text/event-stream")

@@ -66,7 +66,11 @@ def test_conversation_crud(conversation_client):
     assert deleted.status_code == 200
 
 
-def test_history_and_queue(client):
+def test_history_and_queue(client, monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.comfy_generate_service.comfy_generate",
+        lambda payload: {"images": [], "error": "ComfyUI unavailable in test"},
+    )
     assert client.get("/api/history").status_code == 200
     assert client.get("/api/queue_status?client_id=test").json() == {"total": 0, "position": 0}
     payload = client.post("/api/generate", json={"prompt": "test"}).json()
@@ -133,29 +137,152 @@ def test_ms_generate_mock(client, monkeypatch, tmp_path):
 
 
 def test_history_reads_file(client, tmp_path, monkeypatch):
+    from backend.repositories import reset_repositories
+
     history_file = tmp_path / "history.json"
     history_file.write_text(
         '[{"type": "zimage", "timestamp": 2, "images": ["/a.png"]}, {"type": "other", "timestamp": 3, "images": []}]',
         encoding="utf-8",
     )
+    monkeypatch.setattr("backend.config.HISTORY_PATH", history_file)
+    monkeypatch.setattr("backend.repositories.json.history_repository.HISTORY_PATH", history_file)
     monkeypatch.setattr("backend.services.history_service.HISTORY_FILE", history_file)
+    reset_repositories()
     payload = client.get("/api/history").json()
     assert len(payload) == 1
     assert payload[0]["images"] == ["/a.png"]
 
 
 def test_history_delete(client, tmp_path, monkeypatch):
+    from backend.repositories import reset_repositories
+
     history_file = tmp_path / "history.json"
     history_file.write_text(
         '[{"type": "zimage", "timestamp": 123.0, "images": []}, {"type": "zimage", "timestamp": 456.0, "images": ["/output/x.png"]}]',
         encoding="utf-8",
     )
+    monkeypatch.setattr("backend.config.HISTORY_PATH", history_file)
+    monkeypatch.setattr("backend.repositories.json.history_repository.HISTORY_PATH", history_file)
     monkeypatch.setattr("backend.services.history_service.HISTORY_FILE", history_file)
+    reset_repositories()
     result = client.post("/api/history/delete", json={"timestamp": 123.0}).json()
     assert result["success"] is True
     remaining = client.get("/api/history").json()
     assert len(remaining) == 1
     assert remaining[0]["timestamp"] == 456.0
+
+
+def test_history_delete_batch(client, tmp_path, monkeypatch):
+    from backend.repositories import reset_repositories
+
+    history_file = tmp_path / "history.json"
+    history_file.write_text(
+        '[{"type": "online", "timestamp": 100.0, "images": ["/a.png"]}, '
+        '{"type": "online", "timestamp": 200.0, "images": ["/b.png"]}, '
+        '{"type": "online", "timestamp": 300.0, "images": ["/c.png"]}]',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("backend.config.HISTORY_PATH", history_file)
+    monkeypatch.setattr("backend.repositories.json.history_repository.HISTORY_PATH", history_file)
+    monkeypatch.setattr("backend.services.history_service.HISTORY_FILE", history_file)
+    reset_repositories()
+    result = client.post(
+        "/api/history/delete-batch",
+        json={"timestamps": [100.0, 300.0]},
+    ).json()
+    assert result["success"] is True
+    assert result["deleted"] == 2
+    remaining = client.get("/api/history").json()
+    assert len(remaining) == 1
+    assert remaining[0]["timestamp"] == 200.0
+
+
+def test_history_purge_missing(client, tmp_path, monkeypatch):
+    import json
+
+    from backend.repositories import reset_repositories
+    from backend.storage.object_store_factory import reset_object_store
+
+    history_file = tmp_path / "history.json"
+    objects_dir = tmp_path / "objects"
+    output_dir = objects_dir / "output"
+    output_dir.mkdir(parents=True)
+    keep_name = "keep_real.png"
+    (output_dir / keep_name).write_bytes(b"png")
+    history_file.write_text(
+        json.dumps(
+            [
+                {
+                    "type": "online",
+                    "timestamp": 1,
+                    "prompt": "一只猫",
+                    "images": ["/assets/output/jimeng_online.png"],
+                },
+                {
+                    "type": "online",
+                    "timestamp": 2,
+                    "prompt": "real",
+                    "images": [f"/assets/output/{keep_name}"],
+                },
+                {
+                    "type": "zimage",
+                    "timestamp": 3,
+                    "prompt": "hello",
+                    "images": ["/assets/output/mock.png"],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("backend.config.HISTORY_PATH", history_file)
+    monkeypatch.setattr("backend.repositories.json.history_repository.HISTORY_PATH", history_file)
+    monkeypatch.setattr("backend.services.history_service.HISTORY_FILE", history_file)
+    monkeypatch.setattr("backend.config.OBJECTS_DIR", objects_dir)
+    reset_object_store()
+    reset_repositories()
+
+    result = client.post("/api/history/purge-missing", json={"type": "online"}).json()
+    assert result["success"] is True
+    assert result["removed"] == 1
+    online = client.get("/api/history?type=online").json()
+    assert len(online) == 1
+    assert online[0]["prompt"] == "real"
+    # zimage mock left untouched when type filter is online
+    all_items = client.get("/api/history").json()
+    assert any(item.get("type") == "zimage" for item in all_items)
+
+    result_all = client.post("/api/history/purge-missing", json={}).json()
+    assert result_all["success"] is True
+    assert result_all["removed"] == 1
+    assert client.get("/api/history").json()[0]["prompt"] == "real"
+
+
+def test_online_image_mock_does_not_pollute_project_history(client, monkeypatch):
+    """Regression: online mocks must write only to isolated tmp history, not data/."""
+    from pathlib import Path
+
+    project_history = Path(__file__).resolve().parents[3] / "data" / "history.json"
+    before = project_history.read_text(encoding="utf-8") if project_history.is_file() else None
+
+    async def fake_jimeng(prompt, size, model, reference_images=None, provider=None):
+        return ({"type": "url", "value": "/assets/output/jimeng_online.png"}, {"submit_id": "task-jimeng"})
+
+    async def fake_save(image_data, prefix="online_"):
+        return "/assets/output/jimeng_online.png"
+
+    monkeypatch.setattr("backend.services.jimeng_cli_service.generate_jimeng_provider_image", fake_jimeng)
+    monkeypatch.setattr("backend.services.online_image_service.save_ai_image_to_output", fake_save)
+    response = client.post(
+        "/api/online-image",
+        json={"prompt": "一只猫", "provider_id": "jimeng", "model": "jimeng-image-2k"},
+    )
+    assert response.status_code == 200
+    after = project_history.read_text(encoding="utf-8") if project_history.is_file() else None
+    assert after == before
+    # Isolated tmp history should contain the mock append
+    isolated = client.get("/api/history?type=online").json()
+    assert len(isolated) >= 1
+    assert isolated[0]["images"] == ["/assets/output/jimeng_online.png"]
 
 
 
@@ -607,6 +734,37 @@ def test_online_image_jimeng_mock(client, monkeypatch):
     assert payload["provider_id"] == "jimeng"
 
 
+def test_online_image_n_returns_multiple_images(client, monkeypatch):
+    """Regression: n=4 must return 4 URLs (backend gathers parallel generations)."""
+    counter = {"i": 0}
+
+    async def fake_generate(prompt, size, quality, model, reference_images=None, provider_id="comfly"):
+        counter["i"] += 1
+        idx = counter["i"]
+        return (
+            {"type": "url", "value": f"https://example.com/{idx}.png"},
+            {"data": [{"url": f"https://example.com/{idx}.png"}]},
+        )
+
+    async def fake_save(image_data, prefix="online_"):
+        value = (image_data or {}).get("value") or "x"
+        name = value.rsplit("/", 1)[-1].replace(".png", "")
+        return f"/assets/output/online_{name}.png"
+
+    monkeypatch.setattr("backend.services.online_image_service.generate_ai_image", fake_generate)
+    monkeypatch.setattr("backend.services.online_image_service.save_ai_image_to_output", fake_save)
+    monkeypatch.setattr("backend.services.api_providers_service.provider_env_key_value", lambda provider_id: "test-key")
+    response = client.post(
+        "/api/online-image",
+        json={"prompt": "四只猫", "provider_id": "comfly", "model": "gpt-image-2", "n": 4},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["images"]) == 4
+    assert payload["params"]["n"] == 4
+    assert counter["i"] == 4
+
+
 def test_online_image_volcengine_mock(client, monkeypatch):
     async def fake_volcengine(prompt, size, model, reference_images=None, provider=None):
         return ({"type": "url", "value": "https://example.com/volc.png"}, {"id": "vol-task"})
@@ -812,6 +970,86 @@ def test_online_image_openai_edits_mock(client, monkeypatch, tmp_path):
     assert response.status_code == 200
     assert captured.get("refs")
     assert response.json()["images"] == ["/assets/output/openai_edits.png"]
+
+
+def test_online_image_modelscope_normalizes_local_reference_images(client, monkeypatch, tmp_path):
+    from backend.config import OUTPUT_INPUT_DIR
+    from PIL import Image
+
+    captured: dict = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, payload):
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            return None
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            captured["payload"] = json
+            return FakeResponse({"task_id": "ms-task-1"})
+
+        async def get(self, url, headers=None):
+            return FakeResponse(
+                {
+                    "task_status": "SUCCEED",
+                    "output_images": ["https://cdn.example.com/out.png"],
+                }
+            )
+
+    ref_path = OUTPUT_INPUT_DIR / "ms_ref_edit.png"
+    ref_path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (8, 8), color=(0, 0, 255)).save(ref_path)
+
+    async def fake_save(image_data, prefix="online_"):
+        return "/assets/output/ms_edit.png"
+
+    def fake_get_provider(provider_id="modelscope"):
+        return {
+            "id": "modelscope",
+            "name": "ModelScope",
+            "base_url": "https://api.modelscope.cn",
+            "protocol": "modelscope",
+            "enabled": True,
+            "image_models": ["Tongyi-MAI/Z-Image-Turbo"],
+        }
+
+    monkeypatch.setattr("backend.services.online_image_service.get_api_provider", fake_get_provider)
+    monkeypatch.setattr("backend.services.online_image_service.save_ai_image_to_output", fake_save)
+    monkeypatch.setattr("backend.services.online_image_service.modelscope_api_key", lambda explicit_key="": "ms-test")
+    monkeypatch.setattr("backend.services.online_image_service.modelscope_image_api_root", lambda: "https://api.modelscope.cn/v1")
+    monkeypatch.setattr("backend.services.online_image_service.httpx.AsyncClient", FakeAsyncClient)
+
+    response = client.post(
+        "/api/online-image",
+        json={
+            "prompt": "改成红色",
+            "provider_id": "modelscope",
+            "model": "Tongyi-MAI/Z-Image-Turbo",
+            "reference_images": [{"url": "/assets/input/ms_ref_edit.png"}],
+        },
+    )
+    assert response.status_code == 200
+    image_urls = captured["payload"]["image_url"]
+    assert len(image_urls) == 1
+    assert image_urls[0].startswith("data:image/")
+    assert ";base64," in image_urls[0]
+    assert response.json()["images"] == ["/assets/output/ms_edit.png"]
 
 
 def test_online_image_friendly_error_on_400(client, monkeypatch):

@@ -9,6 +9,12 @@ from fastapi import HTTPException
 
 from backend.config import LOCAL_UPLOAD_DIR
 from backend.services.media_paths import local_upload_kind_ext, sanitize_asset_name
+from backend.services.object_store_media import (
+    object_filesystem_path,
+    put_asset_bytes,
+    put_asset_file,
+    uploads_root,
+)
 
 
 def local_upload_rel_path(value: str) -> str:
@@ -25,6 +31,10 @@ def local_upload_rel_path(value: str) -> str:
 
 def local_upload_abs(rel: str) -> tuple[str, str]:
     rel_path = local_upload_rel_path(rel)
+    if rel_path:
+        fs_path = object_filesystem_path(f"uploads/{rel_path}")
+        if fs_path:
+            return rel_path, fs_path
     path = os.path.abspath(os.path.join(str(LOCAL_UPLOAD_DIR), rel_path))
     root = os.path.abspath(str(LOCAL_UPLOAD_DIR))
     try:
@@ -65,10 +75,20 @@ def local_upload_safe_file_stem(name: str) -> str:
 
 
 def local_upload_caption_path(filename: str) -> str:
+    rel = local_upload_rel_path(filename)
+    if rel:
+        fs_path = object_filesystem_path(f"uploads/{os.path.splitext(rel)[0]}.txt")
+        if fs_path:
+            return fs_path
     return os.path.splitext(os.path.join(str(LOCAL_UPLOAD_DIR), filename))[0] + ".txt"
 
 
 def local_upload_classification_path(filename: str) -> str:
+    rel = local_upload_rel_path(filename)
+    if rel:
+        fs_path = object_filesystem_path(f"uploads/{os.path.splitext(rel)[0]}.classification.json")
+        if fs_path:
+            return fs_path
     return os.path.splitext(os.path.join(str(LOCAL_UPLOAD_DIR), filename))[0] + ".classification.json"
 
 
@@ -105,8 +125,9 @@ def read_local_upload_classification(filename: str) -> dict | None:
 
 
 def local_upload_item(filename: str) -> dict:
-    path = os.path.join(str(LOCAL_UPLOAD_DIR), filename)
     rel = local_upload_rel_path(filename)
+    fs_path = object_filesystem_path(f"uploads/{rel}") if rel else None
+    path = fs_path or os.path.join(str(LOCAL_UPLOAD_DIR), filename)
     try:
         stat = os.stat(path)
         size = stat.st_size
@@ -152,35 +173,53 @@ def local_upload_folder_node(path: str = "", name: str = "全部上传") -> dict
     }
 
 
+def _iter_upload_roots() -> list[str]:
+    roots = []
+    obj_root = uploads_root()
+    if obj_root.is_dir():
+        roots.append(str(obj_root))
+    if LOCAL_UPLOAD_DIR.is_dir() and str(LOCAL_UPLOAD_DIR) not in roots:
+        roots.append(str(LOCAL_UPLOAD_DIR))
+    if not roots:
+        os.makedirs(str(LOCAL_UPLOAD_DIR), exist_ok=True)
+        roots.append(str(LOCAL_UPLOAD_DIR))
+    return roots
+
+
 def local_upload_tree_and_items() -> tuple[dict, list]:
-    os.makedirs(str(LOCAL_UPLOAD_DIR), exist_ok=True)
     root_node = local_upload_folder_node("", "全部上传")
     folder_map = {"": root_node}
     items: list[dict] = []
-    for current, dirs, files in os.walk(str(LOCAL_UPLOAD_DIR)):
-        dirs[:] = sorted([d for d in dirs if not d.startswith(".") and not d.startswith("._")], key=str.lower)
-        rel_dir = os.path.relpath(current, str(LOCAL_UPLOAD_DIR)).replace("\\", "/")
-        if rel_dir == ".":
-            rel_dir = ""
-        node = folder_map.get(rel_dir)
-        if node is None:
-            node = local_upload_folder_node(rel_dir)
-            folder_map[rel_dir] = node
-        for dirname in dirs:
-            child_rel = f"{rel_dir}/{dirname}".lstrip("/")
-            child = local_upload_folder_node(child_rel)
-            folder_map[child_rel] = child
-            node["children"].append(child)
-        for name in sorted(files, key=str.lower):
-            if name.startswith(".") or name.startswith("._"):
-                continue
-            rel_file = f"{rel_dir}/{name}".lstrip("/")
-            kind, _ = local_upload_kind_ext(name, "")
-            if kind is None:
-                continue
-            item = local_upload_item(rel_file)
-            node["items"].append(item)
-            items.append(item)
+    seen_files: set[str] = set()
+    for base in _iter_upload_roots():
+        for current, dirs, files in os.walk(base):
+            dirs[:] = sorted([d for d in dirs if not d.startswith(".") and not d.startswith("._")], key=str.lower)
+            rel_dir = os.path.relpath(current, base).replace("\\", "/")
+            if rel_dir == ".":
+                rel_dir = ""
+            node = folder_map.get(rel_dir)
+            if node is None:
+                node = local_upload_folder_node(rel_dir)
+                folder_map[rel_dir] = node
+            for dirname in dirs:
+                child_rel = f"{rel_dir}/{dirname}".lstrip("/")
+                if child_rel not in folder_map:
+                    child = local_upload_folder_node(child_rel)
+                    folder_map[child_rel] = child
+                    node["children"].append(child)
+            for name in sorted(files, key=str.lower):
+                if name.startswith(".") or name.startswith("._"):
+                    continue
+                rel_file = f"{rel_dir}/{name}".lstrip("/")
+                if rel_file in seen_files:
+                    continue
+                kind, _ = local_upload_kind_ext(name, "")
+                if kind is None:
+                    continue
+                seen_files.add(rel_file)
+                item = local_upload_item(rel_file)
+                node["items"].append(item)
+                items.append(item)
 
     def fill_counts(node: dict) -> int:
         total = len(node.get("items") or [])
@@ -207,9 +246,22 @@ def sniff_image_ext_bytes(head: bytes) -> str | None:
     return None
 
 
+def write_bytes_to_folder(folder_abs: str, filename: str, content: bytes) -> str:
+    path = os.path.join(folder_abs, filename)
+    with open(path, "wb") as f:
+        f.write(content)
+    return path
+
+
+def write_upload_caption(filename: str, caption: str) -> str:
+    txt_path = local_upload_caption_path(filename)
+    with open(txt_path, "w", encoding="utf-8", newline="") as f:
+        f.write(caption)
+    return txt_path
+
+
 async def save_upload_file(content: bytes, filename: str, content_type: str, folder: str = "") -> dict:
-    folder_rel, folder_abs = local_upload_safe_folder(folder)
-    os.makedirs(folder_abs, exist_ok=True)
+    folder_rel, _folder_abs = local_upload_safe_folder(folder)
     kind, ext = local_upload_kind_ext(filename, content_type)
     if kind is None:
         raise HTTPException(status_code=400, detail="不支持的素材类型")
@@ -218,9 +270,13 @@ async def save_upload_file(content: bytes, filename: str, content_type: str, fol
     base = base[:60]
     out_name = f"up_{uuid.uuid4().hex[:12]}_{base}{ext}"
     rel_name = f"{folder_rel}/{out_name}".lstrip("/")
-    path = os.path.join(folder_abs, out_name)
-    with open(path, "wb") as f:
-        f.write(content)
+    put_asset_bytes(
+        content,
+        category="uploads",
+        filename=rel_name,
+        content_type=content_type or "application/octet-stream",
+        metadata={"original_filename": filename, "folder": folder_rel},
+    )
     return local_upload_item(rel_name)
 
 
@@ -228,7 +284,6 @@ import shutil
 import urllib.request
 
 from backend.config import LOCAL_IMAGE_IMPORT_EXTS, LOCAL_IMAGE_IMPORT_MAX_BYTES
-from backend.services.media_paths import output_path_for, output_url_for
 
 
 def normalize_local_image_path(value: str) -> str:
@@ -277,9 +332,11 @@ def import_local_image_file(path: str) -> dict:
     except OSError:
         raise HTTPException(status_code=400, detail="文件不是可识别的图片")
     filename = f"ai_ref_{uuid.uuid4().hex[:12]}{ext}"
-    dest = output_path_for(filename, "input")
-    try:
-        shutil.copyfile(path, dest)
-    except OSError:
-        raise HTTPException(status_code=500, detail="导入本地图片失败")
-    return {"url": output_url_for(filename, "input"), "name": os.path.basename(path) or filename, "kind": "image"}
+    stored = put_asset_file(
+        path,
+        category="input",
+        filename=filename,
+        content_type="image/png",
+        metadata={"original_filename": os.path.basename(path) or filename},
+    )
+    return {"url": stored.url, "name": os.path.basename(path) or filename, "kind": "image"}

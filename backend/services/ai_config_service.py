@@ -57,9 +57,12 @@ def modelscope_api_key(explicit_key: str = "") -> str:
 
 
 def ai_config_payload() -> dict:
+    from backend.services.secrets_service import get_secret
+
     chats = chat_models()
     preferred_chat_model = next((m for m in chats if m == "gpt-5.5"), chats[0] if chats else CHAT_MODEL)
     providers = public_api_providers()
+    comfly_key = provider_env_key_value("comfly") or get_secret("COMFLY_API_KEY")
     return {
         "base_url": AI_BASE_URL,
         "chat_model": preferred_chat_model,
@@ -69,7 +72,7 @@ def ai_config_payload() -> dict:
         "video_models": video_models(),
         "comfy_instances": COMFYUI_INSTANCES,
         "api_providers": providers,
-        "has_api_key": bool(AI_API_KEY),
+        "has_api_key": bool(comfly_key or AI_API_KEY),
         "ms_chat_models": modelscope_chat_models(),
         "has_ms_key": bool(modelscope_api_key()),
     }

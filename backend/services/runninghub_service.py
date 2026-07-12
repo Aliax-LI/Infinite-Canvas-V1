@@ -12,7 +12,6 @@ from backend.config import (
     OUTPUT_INPUT_DIR,
     OUTPUT_OUTPUT_DIR,
     RUNNINGHUB_DEFAULT_BASE_URL,
-    RUNNINGHUB_WORKFLOW_STORE_PATH,
     ensure_data_dirs,
 )
 from backend.services.api_providers_service import (
@@ -21,8 +20,6 @@ from backend.services.api_providers_service import (
     load_api_providers,
     normalize_provider,
     provider_env_key_value,
-    provider_key_env,
-    runninghub_wallet_key_env,
     save_api_providers,
 )
 from backend.services.common import now_ms
@@ -42,21 +39,21 @@ def runninghub_workflow_store_key(workflow_id: str) -> str:
 
 
 def load_runninghub_workflow_store() -> dict:
+    from backend.repositories import get_runninghub_workflow_repository
+
     ensure_data_dirs()
-    if not RUNNINGHUB_WORKFLOW_STORE_PATH.is_file():
-        return {}
     try:
-        with open(RUNNINGHUB_WORKFLOW_STORE_PATH, encoding="utf-8") as f:
-            data = json.load(f)
+        data = get_runninghub_workflow_repository().load()
         return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
         return {}
 
 
 def save_runninghub_workflow_store(store: dict) -> None:
+    from backend.repositories import get_runninghub_workflow_repository
+
     ensure_data_dirs()
-    with open(RUNNINGHUB_WORKFLOW_STORE_PATH, "w", encoding="utf-8") as f:
-        json.dump(store, f, ensure_ascii=False, indent=2)
+    get_runninghub_workflow_repository().save(store)
 
 
 def runninghub_workflow_config_has_payload(cfg) -> bool:
@@ -295,9 +292,11 @@ def runninghub_provider():
 
 
 def runninghub_api_key(provider=None, use_wallet: bool = False) -> str:
+    from backend.services.api_providers_service import runninghub_wallet_key_value
+
     provider = provider or runninghub_provider()
     free_key = str((provider or {}).get("api_key") or "").strip() or provider_env_key_value(provider["id"])
-    wallet_key = os.getenv(runninghub_wallet_key_env(), "")
+    wallet_key = runninghub_wallet_key_value()
     api_key = wallet_key if use_wallet and wallet_key else free_key
     if not api_key:
         raise HTTPException(status_code=400, detail="未配置 RunningHub API Key，请在 RH 设置中填写。")
@@ -326,10 +325,12 @@ def runninghub_endpoint_url(provider, path: str) -> str:
 
 
 def runninghub_app_headers(json_body: bool = True, use_wallet: bool = False) -> dict:
+    from backend.services.api_providers_service import runninghub_wallet_key_value
+
     headers = {"Host": "www.runninghub.cn"}
     provider = runninghub_provider()
-    free_key = os.getenv(provider_key_env(provider["id"]), "")
-    wallet_key = os.getenv(runninghub_wallet_key_env(), "")
+    free_key = provider_env_key_value(provider["id"])
+    wallet_key = runninghub_wallet_key_value()
     api_key = wallet_key if use_wallet and wallet_key else free_key
     if api_key:
         headers["Authorization"] = bearer_auth_value(api_key)
@@ -360,6 +361,20 @@ def runninghub_local_asset_path(url: str):
     if os.path.commonpath([root_abs, path]) != root_abs or not os.path.exists(path):
         return None
     return path
+
+
+def read_local_asset_file(url: str) -> tuple[str, str, bytes]:
+    """Read a local asset for RunningHub upload. Returns (filename, content_type, content)."""
+    path = runninghub_local_asset_path(url)
+    if not path or not os.path.isfile(path):
+        raise HTTPException(status_code=400, detail=f"不支持的素材地址：{url}")
+    filename = os.path.basename(path)
+    content_type = content_type_for_path(path)
+    with open(path, "rb") as f:
+        content = f.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="素材为空，无法上传到 RunningHub")
+    return filename, content_type, content
 
 
 def runninghub_extract_outputs(data):

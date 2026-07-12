@@ -1,8 +1,12 @@
+import json
+
+
 def test_list_providers_default(providers_client):
     response = providers_client.get("/api/providers")
     assert response.status_code == 200
     providers = response.json()["providers"]
     assert any(p["id"] == "modelscope" for p in providers)
+    assert any(p["id"] == "volcengine" for p in providers)
     assert all("has_key" in p for p in providers)
 
 
@@ -40,6 +44,73 @@ def test_save_providers(providers_client):
     assert ms["image_models"] == ["flux"]
     rh = next(p for p in providers if p["id"] == "runninghub")
     assert rh["has_key"] is True
+
+
+def test_save_provider_api_key_persists_in_secrets_store(providers_client, tmp_path, monkeypatch):
+    secrets_path = tmp_path / "app_secrets.json"
+    env_file = tmp_path / "API" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("backend.config.APP_SECRETS_PATH", secrets_path)
+    monkeypatch.setattr("backend.config.API_ENV_FILE", env_file)
+    monkeypatch.setattr("backend.services.env_helper.API_ENV_FILE", env_file)
+    monkeypatch.setattr("backend.services.secrets_service.API_ENV_FILE", env_file)
+    monkeypatch.setattr("backend.repositories.json.secrets_repository.APP_SECRETS_PATH", secrets_path)
+    monkeypatch.delenv("MODELSCOPE_API_KEY", raising=False)
+    from backend.repositories import reset_repositories
+
+    reset_repositories()
+
+    payload = [
+        {
+            "id": "modelscope",
+            "name": "ModelScope",
+            "base_url": "https://api-inference.modelscope.cn/v1",
+            "protocol": "openai",
+            "enabled": True,
+            "primary": True,
+            "image_models": [],
+            "chat_models": [],
+            "video_models": [],
+            "api_key": "stored-ms-key",
+        },
+        {
+            "id": "runninghub",
+            "name": "RunningHub",
+            "base_url": "https://www.runninghub.cn",
+            "protocol": "runninghub",
+            "enabled": True,
+            "primary": False,
+            "image_models": [],
+            "chat_models": [],
+            "video_models": [],
+        },
+        {
+            "id": "volcengine",
+            "name": "火山引擎",
+            "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+            "protocol": "volcengine",
+            "enabled": True,
+            "primary": False,
+            "image_models": [],
+            "chat_models": [],
+            "video_models": [],
+        },
+    ]
+    saved = providers_client.put("/api/providers", json=payload)
+    assert saved.status_code == 200
+    assert secrets_path.is_file()
+    secrets = json.loads(secrets_path.read_text(encoding="utf-8"))
+    assert secrets.get("MODELSCOPE_API_KEY") == "stored-ms-key"
+    # Secrets must not be written back to api.env
+    if env_file.is_file():
+        assert "MODELSCOPE_API_KEY" not in env_file.read_text(encoding="utf-8")
+
+    monkeypatch.delenv("MODELSCOPE_API_KEY", raising=False)
+    reset_repositories()
+    listed = providers_client.get("/api/providers")
+    ms = next(p for p in listed.json()["providers"] if p["id"] == "modelscope")
+    assert ms["has_key"] is True
+    assert "stored-ms-key" not in json.dumps(listed.json())
 
 
 def test_save_providers_ms_loras(providers_client):
@@ -215,7 +286,7 @@ def test_fetch_models_modelscope_returns_upstream_only(providers_client, monkeyp
 
     monkeypatch.setattr("backend.services.provider_probe_service.probe_openai_compatible_models", mock_probe)
 
-    async def mock_enrich(result):
+    async def mock_enrich(result, **kwargs):
         from backend.services.modelscope_dolphin_service import merge_modelscope_fetch_result
 
         return merge_modelscope_fetch_result(result, ["Tongyi-MAI/Z-Image-Turbo", "Qwen/Qwen-Image-2512"])

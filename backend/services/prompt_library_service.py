@@ -130,12 +130,14 @@ def normalize_prompt_libraries(data: dict) -> dict:
 
 
 def load_prompt_libraries() -> dict:
+    from backend.repositories import get_prompt_library_repository
+
     ensure_data_dirs()
+    repo = get_prompt_library_repository()
     if not PROMPT_LIBRARY_PATH.is_file():
         return save_prompt_libraries(default_prompt_libraries())
     try:
-        with open(PROMPT_LIBRARY_PATH, encoding="utf-8") as f:
-            data = json.load(f)
+        data = repo.load()
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
         data = default_prompt_libraries()
     if not isinstance(data, dict):
@@ -147,11 +149,12 @@ def load_prompt_libraries() -> dict:
 
 
 def save_prompt_libraries(data: dict) -> dict:
+    from backend.repositories import get_prompt_library_repository
+
     data = normalize_prompt_libraries(data)
     data["updated_at"] = now_ms()
     ensure_data_dirs()
-    with open(PROMPT_LIBRARY_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    get_prompt_library_repository().save(data)
     return data
 
 

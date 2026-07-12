@@ -1,29 +1,17 @@
-import json
-import os
 import uuid
 from typing import Any
 
-from backend.config import CANVAS_DIR, DEFAULT_PROJECT_ID, PROJECTS_PATH, ensure_data_dirs
-from backend.services.common import CANVAS_LOCK, now_ms
+from backend.config import DEFAULT_PROJECT_ID
+from backend.repositories import get_project_repository
+from backend.services.common import now_ms
 
 
 def load_projects() -> list[dict[str, Any]]:
-    try:
-        with open(PROJECTS_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-        projects = data.get("projects") if isinstance(data, dict) else data
-        if isinstance(projects, list):
-            return [p for p in projects if isinstance(p, dict) and p.get("id")]
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
-        return []
-    return []
+    return get_project_repository().load_all()
 
 
 def save_projects(projects: list[dict[str, Any]]) -> None:
-    ensure_data_dirs()
-    with CANVAS_LOCK:
-        with open(PROJECTS_PATH, "w", encoding="utf-8") as f:
-            json.dump({"projects": projects}, f, ensure_ascii=False, indent=2)
+    get_project_repository().save_all(projects)
 
 
 def project_record(project: dict[str, Any]) -> dict[str, Any]:
@@ -107,21 +95,5 @@ def delete_project(project_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="项目不存在")
     projects = [p for p in projects if p.get("id") != project_id]
     save_projects(projects)
-    moved = 0
-    ensure_data_dirs()
-    with CANVAS_LOCK:
-        for filename in os.listdir(CANVAS_DIR):
-            if not filename.endswith(".json"):
-                continue
-            path = os.path.join(CANVAS_DIR, filename)
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (OSError, json.JSONDecodeError, ValueError, TypeError):
-                continue
-            if str(data.get("project") or "") == project_id:
-                data["project"] = DEFAULT_PROJECT_ID
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                moved += 1
+    moved = get_project_repository().reassign_canvases(project_id, DEFAULT_PROJECT_ID)
     return {"ok": True, "moved": moved}

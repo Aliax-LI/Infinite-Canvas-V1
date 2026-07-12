@@ -1,4 +1,5 @@
 import base64
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -9,8 +10,66 @@ def _write_png(path):
     img.save(path, format="PNG")
 
 
+def test_upload_comfy_with_files_field(media_client, monkeypatch):
+    from PIL import Image
+    import io
+
+    monkeypatch.setattr(
+        "backend.routers.media.upload_image_to_comfyui",
+        lambda filename, content, content_type: filename,
+    )
+    img = Image.new("RGB", (8, 8), color=(255, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    data = buf.getvalue()
+    response = media_client.post(
+        "/api/upload",
+        files={"files": ("sample.png", data, "image/png")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["files"] == [{"comfy_name": "sample.png"}]
+
+
+def test_upload_comfy_accepts_legacy_file_field(media_client, monkeypatch):
+    from PIL import Image
+    import io
+
+    monkeypatch.setattr(
+        "backend.routers.media.upload_image_to_comfyui",
+        lambda filename, content, content_type: filename,
+    )
+    img = Image.new("RGB", (8, 8), color=(255, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    data = buf.getvalue()
+    response = media_client.post(
+        "/api/upload",
+        files={"file": ("legacy.png", data, "image/png")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["files"] == [{"comfy_name": "legacy.png"}]
+
+
+def test_upload_comfy_missing_files_returns_422(media_client):
+    response = media_client.post("/api/upload", data={})
+    assert response.status_code == 422
+    assert "No files uploaded" in response.json()["detail"]
+
+
+def test_upload_comfy_wrong_content_type_returns_422(media_client):
+    response = media_client.post(
+        "/api/upload",
+        content=b"{}",
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert "No files uploaded" in response.json()["detail"]
+
+
 def test_ai_upload_saves_local_file(media_client, tmp_path, monkeypatch):
-    from backend.config import OUTPUT_INPUT_DIR
+    from backend.config import OBJECTS_DIR
 
     png = tmp_path / "sample.png"
     _write_png(png)
@@ -25,7 +84,7 @@ def test_ai_upload_saves_local_file(media_client, tmp_path, monkeypatch):
     file_info = payload["files"][0]
     assert file_info["url"].startswith("/assets/input/")
     assert file_info["kind"] == "image"
-    saved = list(OUTPUT_INPUT_DIR.glob("ai_ref_*"))
+    saved = list((OBJECTS_DIR / "input").glob("ai_ref_*"))
     assert saved
 
 
@@ -55,10 +114,10 @@ def test_download_output_local(media_client, tmp_path, monkeypatch):
 
 
 def test_view_local_fallback(media_client, tmp_path):
-    from backend.config import OUTPUT_INPUT_DIR
+    from backend.services.media_paths import output_path_for
 
     filename = "view_test.png"
-    _write_png(OUTPUT_INPUT_DIR / filename)
+    _write_png(Path(output_path_for(filename, "input")))
     response = media_client.get("/api/view", params={"filename": filename, "type": "input"})
     assert response.status_code == 200
 

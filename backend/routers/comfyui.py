@@ -22,6 +22,25 @@ async def get_comfyui_status(instances: str | None = None) -> dict:
     return comfyui_client.probe_comfyui_instances()
 
 
+@router.get("/api/comfyui/upscale-availability")
+async def get_upscale_availability() -> dict:
+    return comfyui_client.check_upscale_availability()
+
+
+@router.get("/api/comfyui/workflow-availability")
+async def get_workflow_availability(workflow: str = "", workflows: str = "") -> dict:
+    if workflows.strip():
+        names = [part.strip() for part in workflows.split(",") if part.strip()]
+        if not names:
+            raise HTTPException(status_code=400, detail="workflows 参数为空")
+        return {"results": comfyui_client.check_workflows_availability(names)}
+
+    name = workflow.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="workflow 或 workflows 参数必填")
+    return comfyui_client.check_workflow_availability(name)
+
+
 @router.put("/api/comfyui/instances")
 async def save_comfyui_instances(payload: ComfyInstancesPayload) -> dict:
     cleaned: list[str] = []

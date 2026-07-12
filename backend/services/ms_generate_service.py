@@ -25,8 +25,17 @@ def modelscope_size(value: str, fallback: str = "1024x1024") -> str:
 
 
 def modelscope_image_url(value: str, max_size: int = 1536) -> str:
-    _ = max_size
-    return str(value or "").strip()
+    """Normalize reference URLs for ModelScope image edit/generation APIs."""
+    text = str(value or "").strip()
+    if not text:
+        return text
+    if text.startswith("data:image/"):
+        return text
+    if text.startswith("/output/") or text.startswith("/assets/"):
+        from backend.services.canvas_llm_media_service import media_reference_to_url
+
+        return media_reference_to_url(text, max_image_size=max_size)
+    return text
 
 
 async def download_ms_image(img_url: str, model: str) -> str:

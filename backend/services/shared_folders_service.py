@@ -2,11 +2,11 @@ import json
 import os
 import urllib.parse
 import uuid
-from threading import Lock
+from threading import RLock
 
 from fastapi import HTTPException
 
-from backend.config import BASE_DIR, DATA_DIR, SHARED_FOLDERS_PATH, ensure_data_dirs
+from backend.config import BASE_DIR, ensure_data_dirs
 from backend.services.common import now_ms
 from backend.services.media_paths import asset_library_media_kind, content_type_for_path, sanitize_asset_name
 
@@ -16,15 +16,16 @@ SHARED_MEDIA_EXTS = {
     ".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac",
 }
 SHARED_SCAN_MAX_ENTRIES = 8000
-SHARED_FOLDERS_LOCK = Lock()
+SHARED_FOLDERS_LOCK = RLock()
 
 
 def shared_folders_load() -> dict:
+    from backend.repositories import get_shared_folders_repository
+
     ensure_data_dirs()
     try:
-        with open(SHARED_FOLDERS_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, TypeError):
+        data = get_shared_folders_repository().load()
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
         data = {}
     if not isinstance(data, dict):
         data = {}
@@ -35,9 +36,11 @@ def shared_folders_load() -> dict:
 
 
 def shared_folders_save(data: dict) -> None:
+    from backend.repositories import get_shared_folders_repository
+
     ensure_data_dirs()
-    with open(SHARED_FOLDERS_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    with SHARED_FOLDERS_LOCK:
+        get_shared_folders_repository().save(data)
 
 
 def shared_folder_by_id(folder_id: str):

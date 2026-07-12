@@ -114,7 +114,27 @@ class AssetLibraryBatchCropRequest(BaseModel):
 class AssetLibraryClassifyRequest(BaseModel):
     library_id: str = ""
     ids: list[str] = []
-    provider: str = "comfly"
+    provider: str = ""
+    model: str = ""
+    ms_model: str = ""
+    prompt: str = ""
+
+
+class AssetLibraryTagsRequest(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+    library_id: str = ""
+
+
+class AssetLibraryAnnotateRequest(BaseModel):
+    library_id: str = ""
+    provider: str = ""
+    model: str = ""
+    ms_model: str = ""
+    prompt: str = ""
+
+
+class AssetAnnotationSettingsRequest(BaseModel):
+    provider: str = ""
     model: str = ""
     ms_model: str = ""
     prompt: str = ""

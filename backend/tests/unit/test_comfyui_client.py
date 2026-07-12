@@ -43,3 +43,75 @@ def test_probe_comfyui_instances_dedup(monkeypatch):
     assert calls == ["127.0.0.1:8188"]
     assert result["online_count"] == 1
     assert result["total"] == 1
+
+
+def test_check_upscale_availability_all_nodes_present(monkeypatch):
+    comfyui_client.clear_upscale_availability_cache()
+    monkeypatch.setattr(
+        "backend.services.workflow_availability.check_workflow_availability",
+        lambda name, force_refresh=False: {
+            "workflow": name,
+            "available": True,
+            "missing_nodes": [],
+            "missing_models": [],
+        },
+    )
+    result = comfyui_client.check_upscale_availability(force_refresh=True)
+    assert result == {"upscale_available": True}
+
+
+def test_check_upscale_availability_missing_nodes(monkeypatch):
+    comfyui_client.clear_upscale_availability_cache()
+    monkeypatch.setattr(
+        "backend.services.workflow_availability.check_workflow_availability",
+        lambda name, force_refresh=False: {
+            "workflow": name,
+            "available": False,
+            "missing_nodes": ["SeedVR2LoadDiTModel"],
+            "missing_models": [],
+            "reason": "缺少自定义节点: SeedVR2LoadDiTModel",
+        },
+    )
+    result = comfyui_client.check_upscale_availability(force_refresh=True)
+    assert result["upscale_available"] is False
+    assert "SeedVR2LoadDiTModel" in result["reason"]
+
+
+def test_check_upscale_availability_comfyui_offline(monkeypatch):
+    comfyui_client.clear_upscale_availability_cache()
+    monkeypatch.setattr(
+        "backend.services.workflow_availability.check_workflow_availability",
+        lambda name, force_refresh=False: {
+            "workflow": name,
+            "available": False,
+            "missing_nodes": [],
+            "missing_models": [],
+            "reason": "ComfyUI 未在线，无法检测工作流依赖",
+        },
+    )
+    result = comfyui_client.check_upscale_availability(force_refresh=True)
+    assert result["upscale_available"] is False
+    assert "ComfyUI" in result["reason"]
+
+
+def test_check_upscale_availability_uses_cache(monkeypatch):
+    comfyui_client.clear_upscale_availability_cache()
+    probe_calls: list[str] = []
+
+    def fake_check(name, force_refresh=False):
+        probe_calls.append(name)
+        return {
+            "workflow": name,
+            "available": True,
+            "missing_nodes": [],
+            "missing_models": [],
+        }
+
+    monkeypatch.setattr(
+        "backend.services.workflow_availability.check_workflow_availability",
+        fake_check,
+    )
+    first = comfyui_client.check_upscale_availability(force_refresh=True)
+    second = comfyui_client.check_upscale_availability(force_refresh=False)
+    assert first == second == {"upscale_available": True}
+    assert len(probe_calls) == 1

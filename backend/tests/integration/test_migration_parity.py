@@ -156,6 +156,8 @@ MIGRATED_ROUTES = {
     ("GET", "/api/history"),
     ("GET", "/api/queue_status"),
     ("POST", "/api/history/delete"),
+    ("POST", "/api/history/delete-batch"),
+    ("POST", "/api/history/purge-missing"),
     ("POST", "/api/angle/poll_status"),
     ("POST", "/api/angle/generate"),
     ("POST", "/api/ms/generate"),

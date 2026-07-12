@@ -20,7 +20,7 @@ class GenerateRequest(BaseModel):
     prompt: str = ""
     width: int = 1024
     height: int = 1024
-    workflow_json: str = "Z-Image.json"
+    workflow_json: str = "z-image-t2i.json"
     params: dict[str, Any] = {}
     type: str = "zimage"
     client_id: str = ""

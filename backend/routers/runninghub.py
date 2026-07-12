@@ -212,10 +212,7 @@ async def runninghub_upload_asset(payload: RunningHubUploadAssetRequest) -> dict
     async with httpx.AsyncClient(timeout=httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0), follow_redirects=True) as client:
         path = runninghub_service.runninghub_local_asset_path(source_url)
         if path:
-            filename = os.path.basename(path)
-            content_type = content_type_for_path(path)
-            with open(path, "rb") as f:
-                content = f.read()
+            filename, content_type, content = runninghub_service.read_local_asset_file(source_url)
         elif source_url.startswith(("http://", "https://")):
             response = await client.get(source_url)
             if not response.is_success:

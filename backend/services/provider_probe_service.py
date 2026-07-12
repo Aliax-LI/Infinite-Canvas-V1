@@ -12,7 +12,6 @@ from backend.services.api_providers_service import (
     get_api_provider_exact,
     is_modelscope_context,
     provider_env_key_value,
-    runninghub_wallet_key_env,
 )
 
 CODEX_DEFAULT_IMAGE_MODELS = ["gpt-image-2"]
@@ -47,7 +46,9 @@ def api_key_from_payload(payload: TestConnectionPayload, protocol: str = "") -> 
         return explicit
     if provider_id:
         if provider_id == "runninghub":
-            wallet = os.getenv(runninghub_wallet_key_env(), "")
+            from backend.services.api_providers_service import runninghub_wallet_key_value
+
+            wallet = runninghub_wallet_key_value()
             if wallet:
                 return wallet
         value = provider_env_key_value(provider_id)
@@ -297,7 +298,11 @@ async def fetch_models_from_provider(provider_id: str) -> dict:
         if is_modelscope_context(provider_id, provider.get("base_url") or ""):
             from backend.services.modelscope_dolphin_service import enrich_modelscope_fetch_result
 
-            fetch = await enrich_modelscope_fetch_result(fetch)
+            fetch = await enrich_modelscope_fetch_result(
+                fetch,
+                base_url=str(provider.get("base_url") or ""),
+                api_key=api_key,
+            )
         return fetch
     if protocol == "volcengine":
         api_key = provider_env_key_value(provider["id"])
@@ -363,5 +368,9 @@ async def fetch_models_from_payload(payload: TestConnectionPayload) -> dict:
     if is_modelscope_context(str(payload.provider_id or ""), str(payload.base_url or "")):
         from backend.services.modelscope_dolphin_service import enrich_modelscope_fetch_result
 
-        fetch = await enrich_modelscope_fetch_result(fetch)
+        fetch = await enrich_modelscope_fetch_result(
+            fetch,
+            base_url=str(payload.base_url or ""),
+            api_key=api_key_from_payload(payload),
+        )
     return fetch

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 
 from backend.models.conversations import ConversationCreateRequest
 from backend.models.generate import CanvasLLMRequest, CanvasVideoRequest, ChatRequest, CloudGenRequest, CloudPollRequest, CloudVideoUploadRequest, GenerateRequest, ImageTaskQueryRequest, MsGenerateRequest, OnlineImageRequest, TempShUploadRequest
-from backend.models.history import DeleteHistoryRequest
+from backend.models.history import BatchDeleteHistoryRequest, DeleteHistoryRequest, PurgeHistoryRequest
 from backend.services import angle_service, canvas_video_service, chat_service, cloud_upload_service, comfy_generate_service, conversation_service, history_service, image_params_service, ms_generate_service, online_image_service
 from backend.services.request_guard import ensure_same_origin_request
 
@@ -131,6 +131,16 @@ async def get_queue_status(client_id: str = "") -> dict:
 @router.post("/api/history/delete")
 async def delete_history(payload: DeleteHistoryRequest) -> dict:
     return history_service.delete_history(payload.timestamp)
+
+
+@router.post("/api/history/delete-batch")
+async def delete_history_batch(payload: BatchDeleteHistoryRequest) -> dict:
+    return history_service.delete_history_batch(payload.timestamps)
+
+
+@router.post("/api/history/purge-missing")
+async def purge_missing_history(payload: PurgeHistoryRequest = PurgeHistoryRequest()) -> dict:
+    return history_service.purge_missing_history(payload.type)
 
 
 @router.post("/api/angle/poll_status")

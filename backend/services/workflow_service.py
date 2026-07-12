@@ -5,8 +5,13 @@ import re
 from fastapi import HTTPException
 
 from backend.config import WORKFLOW_DIR
+from backend.repositories import get_workflow_repository
 
-BUILTIN_WORKFLOWS = {"Z-Image.json", "Z-Image-Enhance.json", "2511.json", "klein-enhance.json", "Flux2-Klein.json", "upscale.json"}
+BUILTIN_WORKFLOWS = {"Z-Image.json", "Z-Image-Enhance.json", "2511.json", "klein-enhance.json", "Flux2-Klein.json", "upscale.json", "z-image-t2i.json", "z-image-control.json", "z-image-enhance.json"}
+# Case / legacy aliases → on-disk builtin filenames (Linux is case-sensitive).
+WORKFLOW_NAME_ALIASES = {
+    "Z-Image-Enhance.json": "z-image-enhance.json",
+}
 CUSTOM_WORKFLOW_FOLDER = "custom"
 LEGACY_CUSTOM_WORKFLOW_FOLDER = "自定义"
 WORKFLOW_NAME_RE = re.compile(
@@ -14,13 +19,28 @@ WORKFLOW_NAME_RE = re.compile(
 )
 
 
+def resolve_workflow_name(name: str) -> str:
+    """Map legacy / alternate workflow filenames to the on-disk builtin name."""
+    return WORKFLOW_NAME_ALIASES.get(name, name)
+
+
+def _repo():
+    return get_workflow_repository()
+
+
 def workflow_path_from_name(name: str) -> str:
     if not WORKFLOW_NAME_RE.match(name):
         raise HTTPException(status_code=400, detail="Invalid workflow name")
-    path = os.path.abspath(os.path.join(str(WORKFLOW_DIR), *name.split("/")))
+    resolved = resolve_workflow_name(name)
+    path = os.path.abspath(os.path.join(str(WORKFLOW_DIR), *resolved.split("/")))
     workflow_root = os.path.abspath(str(WORKFLOW_DIR))
     if os.path.commonpath([workflow_root, path]) != workflow_root:
         raise HTTPException(status_code=400, detail="Invalid workflow name")
+    # Prefer resolved path; fall back to original casing if that file exists (Windows/legacy).
+    if not os.path.isfile(path):
+        alt = os.path.abspath(os.path.join(str(WORKFLOW_DIR), *name.split("/")))
+        if os.path.commonpath([workflow_root, alt]) == workflow_root and os.path.isfile(alt):
+            return alt
     return path
 
 
@@ -46,13 +66,10 @@ def list_workflows() -> list[dict]:
             if is_builtin_workflow(rel):
                 continue
             cfg = {}
-            cfg_path = workflow_config_path(rel)
-            if os.path.exists(cfg_path):
-                try:
-                    with open(cfg_path, encoding="utf-8") as f:
-                        cfg = json.load(f) or {}
-                except (OSError, json.JSONDecodeError, ValueError, TypeError):
-                    cfg = {}
+            try:
+                cfg = _repo().load_config(rel) or {}
+            except (OSError, json.JSONDecodeError, ValueError, TypeError):
+                cfg = {}
             items.append({
                 "name": rel,
                 "title": cfg.get("title") or fn.replace(".json", ""),
@@ -63,20 +80,25 @@ def list_workflows() -> list[dict]:
     return items
 
 
-def get_workflow(name: str) -> dict:
-    workflow_path = workflow_path_from_name(name)
-    if not os.path.exists(workflow_path):
+def workflow_download_path(name: str) -> str:
+    path = workflow_path_from_name(name)
+    if not _repo().workflow_exists(name):
         raise HTTPException(status_code=404, detail="Workflow not found")
-    with open(workflow_path, encoding="utf-8") as f:
-        workflow = json.load(f)
+    return path
+
+
+def get_workflow(name: str) -> dict:
+    workflow_path_from_name(name)
+    if not _repo().workflow_exists(name):
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    workflow = _repo().load_workflow(name)
     cfg = {"title": name.replace(".json", ""), "fields": []}
-    cfg_path = workflow_config_path(name)
-    if os.path.exists(cfg_path):
-        try:
-            with open(cfg_path, encoding="utf-8") as f:
-                cfg = json.load(f) or cfg
-        except (OSError, json.JSONDecodeError, ValueError, TypeError):
-            pass
+    try:
+        loaded = _repo().load_config(name)
+        if loaded:
+            cfg = loaded
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+        pass
     return {"name": name, "workflow": workflow, "config": cfg, "builtin": is_builtin_workflow(name)}
 
 
@@ -95,32 +117,26 @@ def save_workflow_upload(name: str, workflow: dict) -> str:
     custom_dir = WORKFLOW_DIR / CUSTOM_WORKFLOW_FOLDER
     custom_dir.mkdir(parents=True, exist_ok=True)
     stored_name = f"{CUSTOM_WORKFLOW_FOLDER}/{base}"
-    path = workflow_path_from_name(stored_name)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(workflow, f, ensure_ascii=False, indent=2)
+    workflow_path_from_name(stored_name)
+    _repo().save_workflow(stored_name, workflow)
     return stored_name
 
 
 def save_workflow_config(name: str, config: dict) -> dict:
-    workflow_path = workflow_path_from_name(name)
-    if not os.path.exists(workflow_path):
+    workflow_path_from_name(name)
+    if not _repo().workflow_exists(name):
         raise HTTPException(status_code=404, detail="Workflow not found")
-    cfg_path = workflow_config_path(name)
-    with open(cfg_path, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    _repo().save_config(name, config)
     return config
 
 
 def delete_workflow(name: str) -> None:
     if is_builtin_workflow(name):
         raise HTTPException(status_code=400, detail="内置工作流不可删除")
-    workflow_path = workflow_path_from_name(name)
-    cfg_path = workflow_config_path(name)
-    if not os.path.exists(workflow_path):
+    workflow_path_from_name(name)
+    if not _repo().workflow_exists(name):
         raise HTTPException(status_code=404, detail="Workflow not found")
-    os.remove(workflow_path)
-    if os.path.exists(cfg_path):
-        os.remove(cfg_path)
+    _repo().delete_workflow(name)
 
 
 import uuid
@@ -150,8 +166,8 @@ def _coerce_workflow_field_value(field, value):
 
 
 def run_workflow_from_config(name: str, payload: WorkflowRunRequest) -> dict:
-    workflow_path = workflow_path_from_name(name)
-    if not os.path.exists(workflow_path):
+    workflow_path_from_name(name)
+    if not _repo().workflow_exists(name):
         raise HTTPException(status_code=404, detail="Workflow not found")
     params: dict[str, dict] = {}
     for field in payload.config.fields:

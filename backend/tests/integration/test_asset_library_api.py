@@ -122,3 +122,97 @@ def test_avatar_status_apimart_mock(assets_client, monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["item"]["registrations"]["apimart"]["status"] == "Active"
+
+
+def test_batch_add_output_image_to_generated_category(assets_client):
+    from backend.config import OUTPUT_OUTPUT_DIR
+    from backend.services.asset_library_service import GENERATED_CATEGORY_ID
+
+    png = OUTPUT_OUTPUT_DIR / "history_sync_src.png"
+    _write_png(png)
+    lib = assets_client.get("/api/asset-library").json()["library"]
+    generated = next(
+        (c for c in lib["categories"] if c.get("id") == GENERATED_CATEGORY_ID),
+        None,
+    )
+    assert generated is not None, "generated category should exist"
+    response = assets_client.post(
+        "/api/asset-library/items/batch",
+        json={
+            "category_id": generated["id"],
+            "library_id": lib["active_library_id"],
+            "items": [
+                {"url": "/assets/output/history_sync_src.png", "name": "在线生图结果"},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body.get("items") or []) == 1
+    item = body["items"][0]
+    assert item["url"].startswith("/assets/library/")
+    refreshed = assets_client.get("/api/asset-library").json()["library"]
+    stored = next(
+        (
+            entry
+            for cat in refreshed["categories"]
+            if cat.get("id") == GENERATED_CATEGORY_ID
+            for entry in (cat.get("items") or [])
+            if entry.get("id") == item["id"]
+        ),
+        None,
+    )
+    assert stored is not None
+    assert stored["name"] == "在线生图结果"
+
+
+def test_update_item_tags(assets_client):
+    from backend.config import OUTPUT_INPUT_DIR
+
+    cat = _image_category(assets_client)
+    _write_png(OUTPUT_INPUT_DIR / "tag_src.png")
+    item_id = assets_client.post(
+        "/api/asset-library/items",
+        json={"category_id": cat["id"], "url": "/assets/input/tag_src.png", "name": "标签图"},
+    ).json()["item"]["id"]
+    updated = assets_client.patch(
+        f"/api/asset-library/items/{item_id}/tags",
+        json={"tags": ["室内", "产品", "电商"]},
+    ).json()
+    assert updated["item"]["tags"] == ["室内", "产品", "电商"]
+
+
+def test_annotation_settings_roundtrip(assets_client):
+    saved = assets_client.patch(
+        "/api/asset-library/annotation-settings",
+        json={"provider": "comfly", "model": "gpt-4o-mini", "prompt": "重点标注风格"},
+    ).json()
+    assert saved["settings"]["provider"] == "comfly"
+    assert saved["settings"]["model"] == "gpt-4o-mini"
+    loaded = assets_client.get("/api/asset-library/annotation-settings").json()
+    assert loaded["settings"]["prompt"] == "重点标注风格"
+
+
+def test_annotate_item_mock(assets_client, monkeypatch):
+    from backend.config import OUTPUT_INPUT_DIR
+
+    async def fake_classify(abs_path, provider_id="", model="", ms_model="", prompt=""):
+        return {
+            "summary": "一张产品图",
+            "categories": {"subject": ["产品"]},
+            "tags": ["产品", "白底"],
+            "flat": [],
+            "model": "mock",
+            "provider": "comfly",
+        }
+
+    monkeypatch.setattr("backend.services.local_assets_ai_service.classify_image_with_provider", fake_classify)
+    cat = _image_category(assets_client)
+    _write_png(OUTPUT_INPUT_DIR / "annotate_src.png")
+    item_id = assets_client.post(
+        "/api/asset-library/items",
+        json={"category_id": cat["id"], "url": "/assets/input/annotate_src.png", "name": "待标注"},
+    ).json()["item"]["id"]
+    result = assets_client.post(f"/api/asset-library/items/{item_id}/annotate", json={}).json()
+    assert result["item"]["tags"] == ["产品", "白底"]
+    assert result["item"]["caption"] == "一张产品图"

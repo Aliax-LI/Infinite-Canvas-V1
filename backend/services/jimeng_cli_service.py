@@ -444,10 +444,29 @@ def jimeng_local_output_url(path, kind="image"):
 
 
 async def save_ai_image_to_output(image_data, prefix="jimeng_", category="output"):
+    """Persist upstream image bytes/URL into local object store; return /assets/... URL.
+
+    Mirrors history/main.py:save_ai_image_to_output — b64 must be written to disk,
+    not discarded (empty return broke online-image archives after storage refactor).
+    """
     filename = f"{prefix}{uuid.uuid4().hex[:10]}.png"
     path = output_path_for(filename, category)
-    if image_data["type"] == "b64":
+    if not isinstance(image_data, dict):
         return ""
+    if image_data.get("type") == "b64":
+        mime_type = str(image_data.get("mime_type") or "").lower()
+        if "jpeg" in mime_type or "jpg" in mime_type:
+            filename = filename[:-4] + ".jpg"
+            path = output_path_for(filename, category)
+        elif "webp" in mime_type:
+            filename = filename[:-4] + ".webp"
+            path = output_path_for(filename, category)
+        raw = image_data.get("value") or ""
+        if not raw:
+            return ""
+        with open(path, "wb") as f:
+            f.write(base64.b64decode(raw))
+        return output_url_for(filename, category)
     value = rewrite_runninghub_file_url(str(image_data.get("value") or ""))
     if value.startswith("/output/") or value.startswith("/assets/"):
         return value

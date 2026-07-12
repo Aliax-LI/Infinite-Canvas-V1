@@ -2,12 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import FRONTEND_DIST_DIR, ensure_data_dirs
-from backend.routers import ai_config, ai_providers, asset_library, generate, cli_tools, assets, canvas_workflows, canvases, comfyui, deprecated, media, projects, prompt_libraries, runninghub, shared_folders, system, websocket, workflows
+from backend.config import DATABASE_PATH, FRONTEND_DIST_DIR, MIGRATIONS_DIR, ensure_data_dirs
+from backend.storage.migration_runner import ensure_schema_current
+from backend.routers import ai_config, ai_providers, asset_library, generate, cli_tools, assets, canvas_workflows, canvases, comfyui, deprecated, media, object_assets, projects, prompt_libraries, runninghub, shared_folders, system, websocket, workflows
 
 
 def create_app() -> FastAPI:
     ensure_data_dirs()
+    ensure_schema_current(DATABASE_PATH, MIGRATIONS_DIR)
     app = FastAPI(title="Infinite Canvas Backend")
 
     app.add_middleware(
@@ -18,6 +20,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(system.router)
+    app.include_router(object_assets.router)
     app.include_router(deprecated.router)
     app.include_router(media.router)
     app.include_router(assets.router)

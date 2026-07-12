@@ -22,6 +22,8 @@ class ApiProviderPayload(BaseModel):
     clear_wallet_key: bool = False
     volcengine_access_key_id: str | None = None
     volcengine_secret_access_key: str | None = None
+    volcengine_project_name: str | None = None
+    volcengine_region: str | None = None
     clear_volcengine_access_key_id: bool = False
     clear_volcengine_secret_access_key: bool = False
 

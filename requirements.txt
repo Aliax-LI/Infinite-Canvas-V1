@@ -3,5 +3,5 @@ uvicorn
 requests
 pydantic
 python-multipart
-httpx
+httpx>=0.27,<0.28
 pillow

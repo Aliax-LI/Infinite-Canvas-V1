@@ -4,6 +4,34 @@ import re
 from backend.config import API_ENV_FILE
 
 
+def ensure_runtime_config_files() -> None:
+    """Create API env and data dirs on first run so saving keys does not fail."""
+    try:
+        API_ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if not API_ENV_FILE.is_file():
+            API_ENV_FILE.touch()
+    except OSError as exc:
+        print(f"初始化 API 配置目录失败: {exc}")
+
+
+def load_env_file() -> None:
+    """Load persisted API keys from api.env into os.environ (setdefault — no override)."""
+    if not API_ENV_FILE.is_file():
+        return
+    try:
+        for raw_line in API_ENV_FILE.read_text(encoding="utf-8-sig").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                os.environ.setdefault(key, value)
+    except OSError as exc:
+        print(f"加载 API 配置失败 ({API_ENV_FILE}): {exc}")
+
+
 def env_quote(value: str) -> str:
     text = str(value or "")
     pattern = r"\s|#|[\"\x27]"

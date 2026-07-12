@@ -30,6 +30,19 @@ BACKEND_LOCAL_LOAD: dict[str, int] = {}
 COMFYUI_HISTORY_TIMEOUT = int(float(os.getenv("COMFYUI_HISTORY_TIMEOUT", "1800")))
 COMFYUI_DOWNLOAD_TIMEOUT = float(os.getenv("COMFYUI_DOWNLOAD_TIMEOUT", "120"))
 
+# AIO Aux Preprocessor values for Z-Image ControlNet Union (comfyui_controlnet_aux).
+# Keys must match NODE_CLASS_MAPPINGS / AIO_Preprocessor combo exactly
+# (e.g. mlsd → "M-LSDPreprocessor", not "MLSDPreprocessor").
+ZIMAGE_CONTROL_PREPROCESSORS: dict[str, str] = {
+    "canny": "CannyEdgePreprocessor",
+    "depth": "DepthAnythingV2Preprocessor",
+    "pose": "OpenposePreprocessor",
+    "hed": "HEDPreprocessor",
+    "mlsd": "M-LSDPreprocessor",
+}
+ZIMAGE_CONTROL_PREPROCESSOR_TO_ID = {v: k for k, v in ZIMAGE_CONTROL_PREPROCESSORS.items()}
+ZIMAGE_NATIVE_CANNY_PREPROCESSORS = {"CannyEdgePreprocessor", "canny"}
+
 MEDIA_INPUT_KEYS = ("image", "video", "audio", "mask", "filename", "file")
 MEDIA_INPUT_EXT_RE = re.compile(r"\.(png|jpe?g|webp|gif|bmp|tiff?|mp4|webm|mov|m4v|avi|mkv|mp3|wav|m4a|aac|ogg|flac)(?:\?|$)", re.I)
 
@@ -153,6 +166,56 @@ def collect_comfy_file_items(node_output: dict) -> list[tuple[str, dict]]:
     return items
 
 
+def workflow_graph_from_history(history_data: dict | None) -> dict[str, Any]:
+    """Extract the prompt graph (node_id → node) from a ComfyUI history entry."""
+    if not isinstance(history_data, dict):
+        return {}
+    prompt = history_data.get("prompt")
+    if isinstance(prompt, list) and len(prompt) >= 3 and isinstance(prompt[2], dict):
+        return prompt[2]
+    if isinstance(prompt, dict):
+        return prompt
+    return {}
+
+
+def comfy_image_item_priority(item: dict, class_type: str | None = None) -> int:
+    """Lower sorts first: SaveImage / type=output before PreviewImage / type=temp.
+
+    Control workflows (e.g. z-image-control) emit PreviewImage control maps that must
+    not appear as the primary result thumbnail.
+    """
+    ct = str(class_type or "").strip()
+    if ct == "SaveImage":
+        return 0
+    if ct == "PreviewImage":
+        return 2
+    file_type = str((item or {}).get("type") or "").strip().lower()
+    if file_type == "output":
+        return 0
+    if file_type == "temp":
+        return 2
+    return 1
+
+
+def iter_ordered_comfy_image_items(
+    outputs: dict | None,
+    workflow: dict | None = None,
+) -> list[tuple[str, dict, str | None]]:
+    """Yield (output_key, item, class_type) with final SaveImage outputs first."""
+    collected: list[tuple[int, int, str, dict, str | None]] = []
+    graph = workflow if isinstance(workflow, dict) else {}
+    for order, (node_id, node_output) in enumerate((outputs or {}).items()):
+        node = graph.get(str(node_id)) if graph else None
+        class_type = None
+        if isinstance(node, dict):
+            class_type = node.get("class_type")
+        for output_key, item in collect_comfy_file_items(node_output if isinstance(node_output, dict) else {}):
+            priority = comfy_image_item_priority(item, class_type if isinstance(class_type, str) else None)
+            collected.append((priority, order, output_key, item, class_type if isinstance(class_type, str) else None))
+    collected.sort(key=lambda row: (row[0], row[1]))
+    return [(output_key, item, class_type) for _prio, _ord, output_key, item, class_type in collected]
+
+
 def download_comfy_output(comfy_address: str, item: dict, prefix: str = "studio_") -> str:
     ext = comfy_output_extension(item)
     filename = f"{prefix}{uuid.uuid4().hex[:10]}{ext}"
@@ -171,6 +234,105 @@ def download_comfy_output(comfy_address: str, item: dict, prefix: str = "studio_
         return full_url
 
 
+def humanize_comfy_error(message: str) -> str:
+    """Turn opaque ComfyUI / HuggingFace errors into actionable hints."""
+    lc = message.lower()
+    hf_fail = (
+        "hf-mirror" in lc
+        or "localentrynotfound" in lc
+        or ("couldn't connect" in lc and "load the files" in lc)
+        or ("could not connect" in lc and "cached files" in lc)
+        or ("308" in lc and "huggingface" in lc)
+    )
+    if not hf_fail:
+        return message
+
+    depth_hint = ""
+    if "depth-anything" in lc or "depthanything" in lc or "depth_anything" in lc:
+        depth_hint = (
+            "Depth 权重请手动放到：\n"
+            "{ComfyUI}/custom_nodes/comfyui_controlnet_aux/ckpts/depth-anything/"
+            "Depth-Anything-V2-Large/depth_anything_v2_vitl.pth\n"
+            "下载：https://huggingface.co/depth-anything/Depth-Anything-V2-Large\n"
+        )
+
+    return (
+        "控制预处理器首次运行需从 HuggingFace 下载模型权重，但当前 HF 镜像/网络不可用 "
+        "(常见：HF_ENDPOINT=https://hf-mirror.com 返回 308 或连不上)。"
+        "此变量由 ComfyUI 运行环境设置，并非 Infinite Canvas 应用配置。\n"
+        "可立即尝试：① 控制器改选「Canny 边缘」（内置 Canny，无需 HF）；"
+        "② 取消或修正 ComfyUI 的 HF_ENDPOINT 后重启 ComfyUI；"
+        "③ 手动下载权重放到 comfyui_controlnet_aux/ckpts/ 后再试。\n"
+        f"{depth_hint}"
+        f"原始错误：{message}"
+    )
+
+
+def apply_zimage_control_preprocessor(workflow: dict, params: dict[str, Any] | None) -> None:
+    """Configure node 57: native Canny (offline) or AIO Aux Preprocessor (needs HF on first run)."""
+    if "57" not in workflow:
+        return
+
+    node = workflow["57"]
+    node_inputs = (params or {}).get("57") if isinstance(params, dict) else None
+    preprocessor = None
+    if isinstance(node_inputs, dict):
+        preprocessor = node_inputs.get("preprocessor")
+
+    use_native_canny = False
+    if isinstance(node_inputs, dict) and "low_threshold" in node_inputs:
+        use_native_canny = True
+    elif preprocessor in ZIMAGE_NATIVE_CANNY_PREPROCESSORS or not preprocessor:
+        use_native_canny = True
+
+    if use_native_canny:
+        low = 0.1
+        high = 0.32
+        if isinstance(node_inputs, dict):
+            try:
+                if node_inputs.get("low_threshold") is not None:
+                    low = float(node_inputs["low_threshold"])
+                if node_inputs.get("high_threshold") is not None:
+                    high = float(node_inputs["high_threshold"])
+            except (TypeError, ValueError):
+                pass
+        node["class_type"] = "Canny"
+        node.setdefault("_meta", {})["title"] = "Canny边缘检测"
+        node["inputs"] = {
+            "low_threshold": low,
+            "high_threshold": high,
+            "image": ["58", 0],
+        }
+        return
+
+    if not preprocessor or not isinstance(preprocessor, str):
+        preprocessor = ZIMAGE_CONTROL_PREPROCESSORS["depth"]
+
+    resolution = 512
+    if isinstance(node_inputs, dict) and node_inputs.get("resolution") is not None:
+        try:
+            resolution = int(node_inputs["resolution"])
+        except (TypeError, ValueError):
+            resolution = 512
+
+    node["class_type"] = "AIO_Preprocessor"
+    node.setdefault("_meta", {})["title"] = "AIO Aux Preprocessor"
+    node["inputs"] = {
+        "preprocessor": preprocessor,
+        "resolution": resolution,
+        "image": ["58", 0],
+    }
+
+
+def enhance_size_scaled_denoise(width: int, height: int, strength: float) -> float:
+    """Old Z-Image-Enhance strength formula (node 201): (width+height)*strength/10000.
+
+    Feeds KSampler denoise (146/181), ImageAddNoise strength (184), and ImageBlend
+    blend_factor (189). Example: 1024×1024 @ strength 0.5 → 0.1024.
+    """
+    return (int(width) + int(height)) * float(strength) / 10000.0
+
+
 def apply_workflow_defaults(workflow: dict, req: GenerateRequest, seed: int) -> None:
     if "23" in workflow and req.prompt:
         workflow["23"]["inputs"]["text"] = req.prompt
@@ -181,6 +343,34 @@ def apply_workflow_defaults(workflow: dict, req: GenerateRequest, seed: int) -> 
         workflow["22"]["inputs"]["seed"] = seed
     if "158" in workflow:
         workflow["158"]["inputs"]["noise_seed"] = seed
+    # custom/image_z_image_turbo.json (standard ComfyUI nodes)
+    if "57:27" in workflow and req.prompt:
+        workflow["57:27"]["inputs"]["text"] = req.prompt
+    if "57:13" in workflow:
+        workflow["57:13"]["inputs"]["width"] = req.width
+        workflow["57:13"]["inputs"]["height"] = req.height
+    if "57:3" in workflow and "inputs" in workflow["57:3"]:
+        if "seed" in workflow["57:3"]["inputs"]:
+            workflow["57:3"]["inputs"]["seed"] = seed
+    # z-image-control.json (official ComfyUI controlnet workflow)
+    if "70:45" in workflow and req.prompt:
+        workflow["70:45"]["inputs"]["text"] = req.prompt
+    if "70:44" in workflow and "inputs" in workflow["70:44"]:
+        if "seed" in workflow["70:44"]["inputs"]:
+            workflow["70:44"]["inputs"]["seed"] = seed
+    if req.workflow_json == "z-image-control.json":
+        apply_zimage_control_preprocessor(workflow, req.params)
+        # Fixed resolution: params["70:41"] width/height replace GetImageSize links.
+        # Follow-reference mode omits 70:41 so EmptySD3LatentImage keeps ["70:69", 0/1].
+        latent_inputs = (req.params or {}).get("70:41") if isinstance(req.params, dict) else None
+        if isinstance(latent_inputs, dict) and "70:41" in workflow:
+            node_inputs = workflow["70:41"].setdefault("inputs", {})
+            for key in ("width", "height"):
+                if key in latent_inputs and not isinstance(latent_inputs[key], list):
+                    try:
+                        node_inputs[key] = int(latent_inputs[key])
+                    except (TypeError, ValueError):
+                        pass
     for node_id in ["146", "181"]:
         if node_id in workflow and "inputs" in workflow[node_id] and "seed" in workflow[node_id]["inputs"]:
             workflow[node_id]["inputs"]["seed"] = seed
@@ -190,6 +380,23 @@ def apply_workflow_defaults(workflow: dict, req: GenerateRequest, seed: int) -> 
         workflow["172"]["inputs"]["seed"] = seed
     if "14" in workflow and "inputs" in workflow["14"] and "seed" in workflow["14"]["inputs"]:
         workflow["14"]["inputs"]["seed"] = seed
+    # z-image-enhance.json — UI strength is node 204 (FloatConstant).
+    # Dual-pass pipeline links denoise/noise/blend via MathExpression (201→202);
+    # params merge sets 204.value and ComfyUI evaluates (w+h)*c/10000 at runtime.
+    # Only override scalar denoise when formula graph is absent (legacy simplified wf).
+    enhance_strength = (req.params or {}).get("204", {}).get("value")
+    if enhance_strength is not None and req.workflow_json in {"z-image-enhance.json", "Z-Image-Enhance.json"}:
+        try:
+            denoise = float(enhance_strength)
+        except (TypeError, ValueError):
+            denoise = None
+        if denoise is not None:
+            for node_id in ("146", "181", "57:3", "70:44"):
+                node = workflow.get(node_id)
+                if isinstance(node, dict) and isinstance(node.get("inputs"), dict) and "denoise" in node["inputs"]:
+                    if isinstance(node["inputs"]["denoise"], list):
+                        continue
+                    node["inputs"]["denoise"] = denoise
 
 
 def sync_required_images(target_backend: str, required_images: list[str]) -> None:
@@ -281,11 +488,14 @@ def comfy_generate(req: GenerateRequest) -> dict[str, Any]:
         current_timestamp = time.time()
         prefix = f"{req.type}_{int(current_timestamp)}_"
         if "outputs" in history_data:
-            for node_output in history_data["outputs"].values():
-                for _output_key, item in collect_comfy_file_items(node_output):
-                    local_path = download_comfy_output(target_backend, item, prefix=prefix)
-                    local_images.append(local_path)
-                    local_urls.append(local_path)
+            workflow_graph = workflow_graph_from_history(history_data) or workflow
+            for _output_key, item, _class_type in iter_ordered_comfy_image_items(
+                history_data["outputs"],
+                workflow_graph,
+            ):
+                local_path = download_comfy_output(target_backend, item, prefix=prefix)
+                local_images.append(local_path)
+                local_urls.append(local_path)
 
         result = {
             "prompt": req.prompt or "Detail Enhance",
@@ -308,7 +518,7 @@ def comfy_generate(req: GenerateRequest) -> dict[str, Any]:
         append_history_record(result)
         return result
     except Exception as exc:
-        return {"images": [], "error": str(exc)}
+        return {"images": [], "error": humanize_comfy_error(str(exc))}
     finally:
         release_backend_load(target_backend)
         if current_task:
