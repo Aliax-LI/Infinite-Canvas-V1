@@ -56,12 +56,27 @@ export type ChatImageRatio =
 
 export type ChatImageResolution = "auto" | "1k" | "2k" | "4k" | "custom";
 
+export interface AiConfigMsLora {
+  id?: string;
+  name?: string;
+  target_model?: string;
+  model?: string;
+  strength?: number;
+  enabled?: boolean;
+  note?: string;
+}
+
 export interface AiConfig {
   chat_model?: string;
   image_model?: string;
   chat_models?: string[];
   image_models?: string[];
   ms_chat_models?: string[];
+  /** True when ModelScope token is saved (from `/api/config`). */
+  has_ms_key?: boolean;
+  /** Legacy Comfly global key flag. */
+  has_api_key?: boolean;
+  comfy_instances?: string[];
   api_providers?: Array<{
     id: string;
     name: string;
@@ -71,6 +86,9 @@ export interface AiConfig {
     video_models?: string[];
     enabled?: boolean;
     primary?: boolean;
+    has_key?: boolean;
+    has_wallet_key?: boolean;
+    ms_loras?: AiConfigMsLora[];
   }>;
   video_models?: string[];
 }

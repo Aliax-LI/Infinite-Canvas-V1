@@ -13,6 +13,12 @@ describe("uploadMedia", () => {
     expect(url).toContain(encodeURIComponent("/output/test.png"));
   });
 
+  it("canvasMediaPreviewUrl proxies remote https for OUTPUT preview", () => {
+    const url = canvasMediaPreviewUrl("https://cdn.example.com/a.png");
+    expect(url).toContain("/api/download-output");
+    expect(url).toContain(encodeURIComponent("https://cdn.example.com/a.png"));
+  });
+
   it("legacyNodesFromUploads offsets stacked nodes", () => {
     const nodes = legacyNodesFromUploads(
       [{ url: "/output/a.png", name: "a.png" }],

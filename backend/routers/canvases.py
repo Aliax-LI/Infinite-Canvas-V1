@@ -12,6 +12,7 @@ from fastapi.responses import Response
 from backend.models.canvas import (
     CanvasAssetCheckRequest,
     CanvasAssetDownloadRequest,
+    CanvasBatchIdsRequest,
     CanvasCreateRequest,
     CanvasMetaUpdate,
     CanvasSaveRequest,
@@ -39,6 +40,16 @@ async def canvases() -> dict[str, Any]:
 @router.get("/api/canvases/trash")
 async def trashed_canvases() -> dict[str, Any]:
     return {"canvases": canvas_service.list_deleted_canvases(), "retention_days": 30}
+
+
+@router.post("/api/canvases/trash/restore-batch")
+async def restore_canvases_batch(payload: CanvasBatchIdsRequest) -> dict[str, Any]:
+    return canvas_service.restore_canvases_batch(payload.ids)
+
+
+@router.post("/api/canvases/trash/purge-batch")
+async def purge_canvases_batch(payload: CanvasBatchIdsRequest) -> dict[str, Any]:
+    return canvas_service.purge_canvases_batch(payload.ids)
 
 
 @router.post("/api/canvases")

@@ -23,19 +23,19 @@ export const LEGACY_NODE_KINDS = [
 export type LegacyNodeKind = (typeof LEGACY_NODE_KINDS)[number];
 
 export const LEGACY_NODE_LABELS: Record<LegacyNodeKind, string> = {
-  image: "图片",
-  generator: "生成器",
-  msgen: "MS 生成",
-  video: "视频",
+  image: "Image",
+  generator: "API生成",
+  msgen: "Modelscope生成",
+  video: "视频生成",
   comfy: "ComfyUI",
-  rh: "RunningHub",
-  ltxDirector: "LTX 导演",
+  rh: "RH生成",
+  ltxDirector: "LTX Director",
   llm: "LLM",
   prompt: "Prompt",
   loop: "循环",
   group: "分组",
   promptGroup: "Prompt 组",
-  output: "输出",
+  output: "Output",
 };
 
 export interface LegacyNodeImage {
@@ -172,6 +172,37 @@ export function normalizeLegacyNode(raw: unknown): LegacyNode {
       },
     ];
   }
+  // History stores many generator fields at the top level; fold into settings.
+  const baseSettings =
+    (o.settings as Record<string, unknown> | undefined) ?? {};
+  const lifted: Record<string, unknown> = { ...baseSettings };
+  const liftKeys = [
+    "count",
+    "apiProvider",
+    "provider_id",
+    "model",
+    "ratio",
+    "resolution",
+    "quality",
+    "customRatio",
+    "customSize",
+    "size",
+    "msWidth",
+    "msHeight",
+    "workflow_json",
+    "workflowId",
+    "webappId",
+    "rhMode",
+  ] as const;
+  for (const key of liftKeys) {
+    if (lifted[key] == null && o[key] != null) lifted[key] = o[key];
+  }
+  if (lifted._pending == null && Array.isArray(o._pending)) {
+    lifted._pending = o._pending;
+  }
+  if (lifted.outputImages == null && Array.isArray(o.outputImages)) {
+    lifted.outputImages = o.outputImages;
+  }
   return createLegacyNode({
     id: String(o.id ?? crypto.randomUUID()),
     kind,
@@ -180,9 +211,10 @@ export function normalizeLegacyNode(raw: unknown): LegacyNode {
     width: positiveSize(o.width ?? o.w, LEGACY_NODE_W),
     height: positiveSize(o.height ?? o.h, LEGACY_NODE_H),
     title: String(o.title ?? o.name ?? o.kind ?? o.type ?? "节点"),
-    prompt: String(o.prompt ?? ""),
+    // History prompt nodes store body in `text`; React editor uses `prompt`.
+    prompt: String(o.prompt ?? o.text ?? ""),
     images,
-    settings: (o.settings as Record<string, unknown>) ?? {},
+    settings: lifted,
   });
 }
 

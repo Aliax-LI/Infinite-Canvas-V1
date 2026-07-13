@@ -224,6 +224,49 @@ export function CanvasListPage() {
     onError: () => toast(t("purgeFailed")),
   });
 
+  const restoreBatchMutation = useMutation({
+    mutationFn: (ids: string[]) => canvasListApi.restoreCanvasesBatch(ids),
+    onSuccess: (res) => {
+      invalidateAll();
+      refetch();
+      if (res.failed > 0) {
+        toast(
+          t("trashBatchRestorePartial", {
+            restored: res.restored,
+            failed: res.failed,
+          }),
+        );
+      } else {
+        toast(t("trashBatchRestored", { count: res.restored }));
+      }
+    },
+    onError: () => toast(t("restoreFailed")),
+  });
+
+  const purgeBatchMutation = useMutation({
+    mutationFn: (ids: string[]) => canvasListApi.purgeCanvasesBatch(ids),
+    onSuccess: (res) => {
+      invalidateAll();
+      if (res.failed > 0) {
+        toast(
+          t("trashBatchPurgePartial", {
+            purged: res.purged,
+            failed: res.failed,
+          }),
+        );
+      } else {
+        toast(t("trashBatchPurged", { count: res.purged }));
+      }
+    },
+    onError: () => toast(t("purgeFailed")),
+  });
+
+  const trashBusy =
+    restoreMutation.isPending ||
+    purgeMutation.isPending ||
+    restoreBatchMutation.isPending ||
+    purgeBatchMutation.isPending;
+
   const metaMutation = useMutation({
     mutationFn: ({
       id,
@@ -570,9 +613,12 @@ export function CanvasListPage() {
             canvases={trashData?.canvases ?? []}
             projects={projects}
             retentionDays={trashData?.retention_days ?? 30}
+            busy={trashBusy}
             onClose={() => setShowTrash(false)}
             onRestore={(id) => restoreMutation.mutate(id)}
             onPurge={(id) => purgeMutation.mutate(id)}
+            onRestoreBatch={(ids) => restoreBatchMutation.mutate(ids)}
+            onPurgeBatch={(ids) => purgeBatchMutation.mutate(ids)}
           />
         </div>
 

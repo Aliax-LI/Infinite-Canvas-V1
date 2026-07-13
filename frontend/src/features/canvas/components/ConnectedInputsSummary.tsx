@@ -8,6 +8,10 @@ interface ConnectedInputsSummaryProps {
   nodeId: string;
   /** Show empty hint when no image inputs (history generator always shows list). */
   showEmptyImagesHint?: boolean;
+  /** When false, omit the IMAGES block entirely (e.g. ZImage tab). */
+  showImagesSection?: boolean;
+  /** Dashed empty drop-zone styling (history MS / Klein). */
+  emptyImagesDashed?: boolean;
 }
 
 function promptLabel(src: GeneratorSource): string {
@@ -27,12 +31,18 @@ export function ConnectedInputsSummary({
   sources,
   nodeId,
   showEmptyImagesHint = true,
+  showImagesSection = true,
+  emptyImagesDashed = false,
 }: ConnectedInputsSummaryProps) {
   const { t } = useTranslation("canvas");
   const promptInputs = sources.filter((s) => s.prompt && !s.refs.length);
   const imageInputs = sources.filter((s) => s.refs.some((r) => r.url));
 
-  if (!promptInputs.length && !imageInputs.length && !showEmptyImagesHint) {
+  if (
+    !promptInputs.length &&
+    !imageInputs.length &&
+    !(showEmptyImagesHint && showImagesSection)
+  ) {
     return null;
   }
 
@@ -66,6 +76,7 @@ export function ConnectedInputsSummary({
         </div>
       ) : null}
 
+      {showImagesSection ? (
       <div>
         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
           {t("images")}
@@ -74,7 +85,11 @@ export function ConnectedInputsSummary({
         {imageInputs.length === 0 ? (
           showEmptyImagesHint ? (
             <div
-              className="text-[11px] text-gray-300 py-1"
+              className={
+                emptyImagesDashed
+                  ? "text-[11px] text-gray-300 py-4 px-2 text-center border border-dashed border-gray-200 bg-gray-50/60"
+                  : "text-[11px] text-gray-300 py-1"
+              }
               data-testid={`legacy-input-images-empty-${nodeId}`}
             >
               {t("inputImagesEmpty")}
@@ -91,29 +106,35 @@ export function ConnectedInputsSummary({
               return (
                 <div
                   key={src.id}
-                  className="relative w-[72px] h-[72px] flex-none border border-gray-200 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center"
+                  className="relative w-[72px] flex-none"
                   title={imageLabel(src, i)}
                   data-testid={`legacy-wired-image-${src.id}`}
                 >
-                  <span className="absolute top-0.5 left-0.5 z-10 text-[9px] font-bold bg-black/70 text-white px-1 rounded">
-                    {i + 1}
-                  </span>
-                  {preview ? (
-                    <img
-                      src={preview}
-                      alt={imageLabel(src, i)}
-                      className="w-full h-full object-cover"
-                      draggable={false}
-                    />
-                  ) : (
-                    <ImageIcon className="w-6 h-6 text-gray-400" aria-hidden />
-                  )}
+                  <div className="relative h-[72px] border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                    <span className="absolute top-0.5 left-0.5 z-10 text-[9px] font-bold bg-black/70 text-white px-1">
+                      {i + 1}
+                    </span>
+                    {preview ? (
+                      <img
+                        src={preview}
+                        alt={imageLabel(src, i)}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
+                    ) : (
+                      <ImageIcon className="w-6 h-6 text-gray-400" aria-hidden />
+                    )}
+                  </div>
+                  <div className="mt-0.5 truncate text-[9px] font-bold text-slate-500">
+                    {imageLabel(src, i)}
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+      ) : null}
     </div>
   );
 }

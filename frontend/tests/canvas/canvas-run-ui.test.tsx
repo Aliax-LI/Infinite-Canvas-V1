@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { PendingOutputCard, NodeRunningBadge } from "../../src/features/canvas/components/CanvasRunUi";
 import { GeneratorNodeBody } from "../../src/features/canvas/components/GeneratorNodeBody";
 import { createLegacyNode } from "../../src/features/canvas/core/types";
@@ -33,8 +33,7 @@ describe("CanvasRunUi pending / running", () => {
     expect(card.getAttribute("data-pending-failed")).toBe("0");
     expect(card.getAttribute("aria-busy")).toBe("true");
     expect(card.className).toContain("studio-canvas-pending-slot");
-    expect(card.className).not.toContain("border-red");
-    expect(card.className).not.toContain("bg-red");
+    expect(card.className).not.toContain("legacy-output-error-row");
   });
 
   it("renders failed pending with red error style", () => {
@@ -51,7 +50,7 @@ describe("CanvasRunUi pending / running", () => {
     );
     const card = screen.getByTestId("output-pending-p2");
     expect(card.getAttribute("data-pending-failed")).toBe("1");
-    expect(card.className).toContain("border-red");
+    expect(card.className).toContain("legacy-output-error-row");
     expect(screen.getByText("boom")).toBeInTheDocument();
   });
 
@@ -94,7 +93,7 @@ describe("CanvasRunUi pending / running", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    const now = 200_000;
+    const now = 1_700_000_200_000;
     vi.spyOn(Date, "now").mockReturnValue(now);
     render(
       <QueryClientProvider client={client}>
@@ -116,6 +115,64 @@ describe("CanvasRunUi pending / running", () => {
       </QueryClientProvider>,
     );
     const btn = screen.getByTestId("legacy-gen-run-g2");
-    expect(btn.textContent).toMatch(/0ms|generating/i);
+    expect(btn.textContent).toMatch(/0(\.0)?s|0ms|generating/i);
+  });
+
+  it("does not open at stale ~10s when prior runStartedAt lingers", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const now = 1_700_000_200_000;
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    render(
+      <QueryClientProvider client={client}>
+        <GeneratorNodeBody
+          node={createLegacyNode({
+            id: "g3",
+            kind: "generator",
+            settings: {
+              apiProvider: "x",
+              model: "m",
+              // Stale anchor from ~10s ago (the reported bug).
+              runStartedAt: now - 10_000,
+            },
+          })}
+          running
+          onUpdateSettings={() => {}}
+          onUpdatePrompt={() => {}}
+          onRun={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+    const btn = screen.getByTestId("legacy-gen-run-g3");
+    expect(btn.textContent).not.toMatch(/10\.0s/);
+    expect(btn.textContent).toMatch(/0(\.0)?s|0ms|generating/i);
+  });
+
+  it("renders count stepper for API generator", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const onUpdateSettings = vi.fn();
+    render(
+      <QueryClientProvider client={client}>
+        <GeneratorNodeBody
+          node={createLegacyNode({
+            id: "g4",
+            kind: "generator",
+            settings: { apiProvider: "x", model: "m", count: 2 },
+          })}
+          running={false}
+          onUpdateSettings={onUpdateSettings}
+          onUpdatePrompt={() => {}}
+          onRun={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId("legacy-gen-count-g4-input")).toHaveValue("2");
+    fireEvent.click(screen.getByTestId("legacy-gen-count-g4-inc"));
+    expect(onUpdateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ count: 3 }),
+    );
   });
 });

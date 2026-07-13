@@ -12,6 +12,11 @@ export default defineConfig({
         target: "http://127.0.0.1:3000",
         changeOrigin: true,
       },
+      // History ModelScope Z-Image cloud route (alias of cloud generate).
+      "/generate": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
       "/ws": {
         target: "ws://127.0.0.1:3000",
         ws: true,

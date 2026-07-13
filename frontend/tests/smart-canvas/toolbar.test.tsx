@@ -6,24 +6,11 @@ import { SmartCanvasToolbar } from "../../src/features/smart-canvas/components/S
 const baseProps = {
   title: "测试画布",
   dirty: true,
-  saving: false,
-  connectMode: false,
   assetOpen: false,
-  templateOpen: false,
-  workflowOpen: false,
-  onUndo: vi.fn(),
-  onRedo: vi.fn(),
-  onArrange: vi.fn(),
-  onToggleConnect: vi.fn(),
   onToggleAssets: vi.fn(),
-  onToggleTemplates: vi.fn(),
-  onToggleWorkflowPicker: vi.fn(),
   onOpenTransfer: vi.fn(),
-  onAddImportNode: vi.fn(),
-  onOpenCreateMenu: vi.fn(),
   onOpenLogs: vi.fn(),
   onOpenShortcuts: vi.fn(),
-  onSave: vi.fn(),
 };
 
 describe("SmartCanvasToolbar", () => {
@@ -32,32 +19,26 @@ describe("SmartCanvasToolbar", () => {
     vi.clearAllMocks();
   });
 
-  it("renders distinct actions without duplicate upload icons", () => {
+  it("renders history floating chrome without bottom edit cluster", () => {
     render(
       <MemoryRouter>
         <SmartCanvasToolbar {...baseProps} />
       </MemoryRouter>,
     );
     expect(screen.getByTestId("smart-canvas-toolbar")).toBeTruthy();
-    expect(screen.getByTestId("undo-btn")).toBeTruthy();
-    expect(screen.getByTestId("redo-btn")).toBeTruthy();
-    expect(screen.getByTestId("arrange-btn")).toBeTruthy();
-    expect(screen.getByTestId("connect-mode-btn")).toBeTruthy();
     expect(screen.getByTestId("assets-btn")).toBeTruthy();
-    expect(screen.getByTestId("templates-btn")).toBeTruthy();
-    expect(screen.getByTestId("workflow-picker-btn")).toBeTruthy();
     expect(screen.getByTestId("workflow-transfer-btn")).toBeTruthy();
-    expect(screen.getByTestId("add-node-btn")).toBeTruthy();
     expect(screen.getByTestId("logs-btn")).toBeTruthy();
     expect(screen.getByTestId("shortcuts-btn")).toBeTruthy();
-    expect(screen.getByTestId("save-btn")).toBeTruthy();
     expect(screen.getByTestId("smart-dirty-badge")).toBeTruthy();
-    // No standalone import/export icon buttons — merged into transfer
+    expect(screen.queryByTestId("smart-edit-cluster")).toBeNull();
+    expect(screen.queryByTestId("undo-btn")).toBeNull();
+    expect(screen.queryByTestId("legacy-save-btn")).toBeNull();
     expect(screen.queryByTitle("导入")).toBeNull();
     expect(screen.queryByTitle("导出")).toBeNull();
   });
 
-  it("wires transfer and save handlers", () => {
+  it("wires transfer and asset handlers", () => {
     render(
       <MemoryRouter>
         <SmartCanvasToolbar {...baseProps} />
@@ -65,16 +46,16 @@ describe("SmartCanvasToolbar", () => {
     );
     fireEvent.click(screen.getByTestId("workflow-transfer-btn"));
     expect(baseProps.onOpenTransfer).toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("save-btn"));
-    expect(baseProps.onSave).toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("assets-btn"));
+    expect(baseProps.onToggleAssets).toHaveBeenCalled();
   });
 
-  it("marks connect mode active", () => {
+  it("marks asset library active", () => {
     render(
       <MemoryRouter>
-        <SmartCanvasToolbar {...baseProps} connectMode />
+        <SmartCanvasToolbar {...baseProps} assetOpen />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId("connect-mode-btn").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("assets-btn").getAttribute("aria-pressed")).toBe("true");
   });
 });

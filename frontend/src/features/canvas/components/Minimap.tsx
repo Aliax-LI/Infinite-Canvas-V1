@@ -1,12 +1,23 @@
 import { useMemo } from "react";
-import { computeBounds } from "../core/viewport";
-import type { LegacyNode, ViewportState } from "../core/types";
+import { LayoutGrid } from "lucide-react";
+import {
+  computeMinimapLayout,
+  worldViewRect,
+} from "../core/minimapLayout";
+import {
+  LEGACY_NODE_H,
+  LEGACY_NODE_W,
+  type LegacyNode,
+  type ViewportState,
+} from "../core/types";
 
 interface MinimapProps {
   nodes: LegacyNode[];
   viewport: ViewportState;
   containerWidth: number;
   containerHeight: number;
+  selectedCount?: number;
+  onArrangeSelected?: () => void;
 }
 
 export function Minimap({
@@ -14,50 +25,81 @@ export function Minimap({
   viewport,
   containerWidth,
   containerHeight,
+  selectedCount = 0,
+  onArrangeSelected,
 }: MinimapProps) {
-  const bounds = useMemo(() => computeBounds(nodes), [nodes]);
-
-  if (!bounds) return null;
-
   const mapW = 120;
   const mapH = 80;
-  const contentW = bounds.maxX - bounds.minX || 1;
-  const contentH = bounds.maxY - bounds.minY || 1;
-  const scale = Math.min(mapW / contentW, mapH / contentH);
 
-  const viewW = (containerWidth / viewport.scale) * scale;
-  const viewH = (containerHeight / viewport.scale) * scale;
-  const viewX = (-viewport.x / viewport.scale - bounds.minX) * scale;
-  const viewY = (-viewport.y / viewport.scale - bounds.minY) * scale;
+  const layout = useMemo(() => {
+    if (!nodes.length) return null;
+    const nodeRects = nodes.map((n) => ({
+      x: n.x,
+      y: n.y,
+      w: n.width ?? LEGACY_NODE_W,
+      h: n.height ?? LEGACY_NODE_H,
+    }));
+    const view = worldViewRect(viewport, containerWidth, containerHeight);
+    return computeMinimapLayout(nodeRects, view, mapW, mapH);
+  }, [nodes, viewport, containerWidth, containerHeight]);
+
+  if (!layout) return null;
+
+  const showArrange = selectedCount >= 1 && Boolean(onArrangeSelected);
 
   return (
-    <div
-      className="absolute bottom-4 right-4 border border-[var(--border)] bg-[var(--bg)]/80 p-1 z-10"
-      style={{ width: mapW + 8, height: mapH + 8 }}
-      data-testid="legacy-minimap"
-      onPointerDown={(e) => e.stopPropagation()}
-    >
-      <svg width={mapW} height={mapH} className="block">
-        {nodes.map((n) => (
+    <div className="absolute bottom-4 right-[22px] z-10 flex flex-col items-end gap-2">
+      {showArrange ? (
+        <button
+          type="button"
+          className="flex h-8 items-center gap-1.5 border border-[var(--border)] bg-[var(--bg)]/95 px-2.5 text-[11px] font-extrabold text-[var(--muted)] shadow-[0_10px_24px_rgba(15,23,42,0.13)] backdrop-blur-md hover:-translate-y-px hover:text-[var(--text)]"
+          title="整理选中节点"
+          aria-label="整理选中节点"
+          data-testid="legacy-arrange-selected-btn"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onArrangeSelected}
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
+          <span>整理选中</span>
+        </button>
+      ) : null}
+      <div
+        className="border border-[var(--border)] bg-[var(--bg)]/90 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.13)] backdrop-blur-md"
+        style={{ width: mapW + 8, height: mapH + 8 }}
+        data-testid="legacy-minimap"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <svg width={mapW} height={mapH} className="block overflow-hidden">
+          {nodes.map((n) => {
+            const r = layout.project({
+              x: n.x,
+              y: n.y,
+              w: n.width ?? LEGACY_NODE_W,
+              h: n.height ?? LEGACY_NODE_H,
+            });
+            return (
+              <rect
+                key={n.id}
+                x={r.x}
+                y={r.y}
+                width={r.w}
+                height={r.h}
+                fill="var(--muted)"
+              />
+            );
+          })}
           <rect
-            key={n.id}
-            x={(n.x - bounds.minX) * scale}
-            y={(n.y - bounds.minY) * scale}
-            width={(n.width ?? 280) * scale}
-            height={4}
-            fill="var(--muted)"
+            data-testid="legacy-minimap-viewport"
+            x={layout.view.x}
+            y={layout.view.y}
+            width={layout.view.w}
+            height={layout.view.h}
+            fill="rgba(17,24,39,0.08)"
+            stroke="var(--text)"
+            strokeWidth={1.5}
           />
-        ))}
-        <rect
-          x={viewX}
-          y={viewY}
-          width={viewW}
-          height={viewH}
-          fill="none"
-          stroke="var(--text)"
-          strokeWidth={1}
-        />
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 }

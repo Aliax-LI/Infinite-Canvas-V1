@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
+  connectionCubicPathD,
   connectionPath,
   connectionPathResolved,
   effectiveNodeHeight,
@@ -35,6 +36,16 @@ describe("legacy layout", () => {
     expect(path.y1).toBe(60);
     expect(path.x2).toBe(400);
     expect(path.y2).toBe(100 + 160);
+  });
+
+  it("connectionCubicPathD matches history horizontal bezier", () => {
+    expect(connectionCubicPathD(0, 10, 200, 50)).toBe(
+      "M 0 10 C 90 10, 110 50, 200 50",
+    );
+    // Short span still uses min dx=80
+    expect(connectionCubicPathD(0, 0, 40, 0)).toBe(
+      "M 0 0 C 80 0, -40 0, 40 0",
+    );
   });
 
   it("ports stay vertically centered for every runnable kind height", () => {
@@ -94,7 +105,7 @@ describe("resolvePortPoint (DOM)", () => {
     root.remove();
   });
 
-  it("uses port element offset within the card when laid out", () => {
+  it("uses getBoundingClientRect visual center (includes translateY(-50%))", () => {
     const node = createLegacyNode({
       kind: "comfy",
       id: "c1",
@@ -110,9 +121,70 @@ describe("resolvePortPoint (DOM)", () => {
     card.style.position = "absolute";
     Object.defineProperty(card, "offsetWidth", { value: 280 });
     Object.defineProperty(card, "offsetHeight", { value: 320 });
+    card.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 200,
+        width: 280,
+        height: 320,
+        right: 380,
+        bottom: 520,
+        x: 100,
+        y: 200,
+        toJSON() {},
+      }) as DOMRect;
 
     const port = document.createElement("div");
     port.setAttribute("data-testid", "legacy-port-in-c1");
+    // Pre-transform offsetTop at mid-card; translateY(-50%) would put visual
+    // center at offsetTop — rect below is that visual box (44×44 hit target).
+    Object.defineProperty(port, "offsetLeft", { value: -29 });
+    Object.defineProperty(port, "offsetTop", { value: 160 });
+    Object.defineProperty(port, "offsetWidth", { value: 44 });
+    Object.defineProperty(port, "offsetHeight", { value: 44 });
+    // Visual center after -translate-y-1/2: y = 200 + 160 = 360 (not 160+22).
+    port.getBoundingClientRect = () =>
+      ({
+        left: 71,
+        top: 338,
+        width: 44,
+        height: 44,
+        right: 115,
+        bottom: 382,
+        x: 71,
+        y: 338,
+        toJSON() {},
+      }) as DOMRect;
+    card.appendChild(port);
+    root.appendChild(card);
+
+    const pt = resolvePortPoint(node, "in");
+    expect(pt.x).toBe(100 + (71 + 22 - 100));
+    expect(pt.y).toBe(200 + (338 + 22 - 200));
+    // Must NOT use naive offsetTop + height/2 (would be 382).
+    expect(pt.y).toBe(360);
+    expect(pt.y).not.toBe(200 + 160 + 22);
+  });
+
+  it("falls back to offset geometry when rects are empty (jsdom)", () => {
+    const node = createLegacyNode({
+      kind: "comfy",
+      id: "c2",
+      x: 100,
+      y: 200,
+      width: 280,
+      height: 320,
+    });
+    const card = document.createElement("div");
+    card.setAttribute("data-testid", "legacy-node-c2");
+    card.style.left = "100px";
+    card.style.top = "200px";
+    card.style.position = "absolute";
+    Object.defineProperty(card, "offsetWidth", { value: 280 });
+    Object.defineProperty(card, "offsetHeight", { value: 320 });
+
+    const port = document.createElement("div");
+    port.setAttribute("data-testid", "legacy-port-in-c2");
     Object.defineProperty(port, "offsetLeft", { value: -6 });
     Object.defineProperty(port, "offsetTop", { value: 154 });
     Object.defineProperty(port, "offsetWidth", { value: 12 });
@@ -137,7 +209,7 @@ describe("resolvePortPoint (DOM)", () => {
     expect(connectionPathResolved(node, node).y1).toBe(nodeOutPort(node).y);
   });
 
-  it("follows drag style.left/top on the card", () => {
+  it("follows drag style.left/top on the card via rects", () => {
     const node = createLegacyNode({
       kind: "msgen",
       id: "drag1",
@@ -149,17 +221,43 @@ describe("resolvePortPoint (DOM)", () => {
     card.setAttribute("data-testid", "legacy-node-drag1");
     card.style.left = "40px";
     card.style.top = "60px";
+    Object.defineProperty(card, "offsetWidth", { value: 280 });
+    Object.defineProperty(card, "offsetHeight", { value: 200 });
+    card.getBoundingClientRect = () =>
+      ({
+        left: 40,
+        top: 60,
+        width: 280,
+        height: 200,
+        right: 320,
+        bottom: 260,
+        x: 40,
+        y: 60,
+        toJSON() {},
+      }) as DOMRect;
     const port = document.createElement("div");
     port.setAttribute("data-testid", "legacy-port-out-drag1");
     Object.defineProperty(port, "offsetLeft", { value: 274 });
     Object.defineProperty(port, "offsetTop", { value: 94 });
     Object.defineProperty(port, "offsetWidth", { value: 12 });
     Object.defineProperty(port, "offsetHeight", { value: 12 });
+    port.getBoundingClientRect = () =>
+      ({
+        left: 314,
+        top: 148,
+        width: 12,
+        height: 12,
+        right: 326,
+        bottom: 160,
+        x: 314,
+        y: 148,
+        toJSON() {},
+      }) as DOMRect;
     card.appendChild(port);
     root.appendChild(card);
 
     const pt = resolvePortPoint(node, "out");
-    expect(pt.x).toBe(40 + 274 + 6);
-    expect(pt.y).toBe(60 + 94 + 6);
+    expect(pt.x).toBe(40 + (314 + 6 - 40));
+    expect(pt.y).toBe(60 + (148 + 6 - 60));
   });
 });

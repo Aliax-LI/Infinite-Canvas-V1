@@ -23,6 +23,46 @@ describe("shortcuts", () => {
     expect(matchShortcut(e)).toBe("undo");
   });
 
+  it("matches ctrl/meta+s save", () => {
+    const withMeta = {
+      key: "s",
+      metaKey: true,
+      ctrlKey: false,
+      shiftKey: false,
+      target: document.body,
+    } as unknown as KeyboardEvent;
+    expect(matchShortcut(withMeta)).toBe("save");
+
+    const withCtrl = {
+      key: "s",
+      metaKey: false,
+      ctrlKey: true,
+      shiftKey: false,
+      target: document.body,
+    } as unknown as KeyboardEvent;
+    expect(matchShortcut(withCtrl)).toBe("save");
+  });
+
+  it("matches delete and backspace", () => {
+    const del = {
+      key: "Delete",
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      target: document.body,
+    } as unknown as KeyboardEvent;
+    expect(matchShortcut(del)).toBe("delete");
+
+    const backspace = {
+      key: "Backspace",
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      target: document.body,
+    } as unknown as KeyboardEvent;
+    expect(matchShortcut(backspace)).toBe("delete");
+  });
+
   it("ignores input fields", () => {
     const input = document.createElement("input");
     const e = {

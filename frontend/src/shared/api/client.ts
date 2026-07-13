@@ -1,4 +1,4 @@
-import { formatApiDetail, statusFallbackMessage } from "./formatError";
+import { formatApiDetail, statusFallbackMessage, truncateErrorText } from "./formatError";
 
 export class ApiError extends Error {
   status: number;
@@ -41,6 +41,36 @@ function defaultHeaders(init?: RequestInit): Headers {
   return headers;
 }
 
+function messageFromFailedResponse(
+  status: number,
+  statusText: string,
+  data: unknown,
+): string {
+  if (typeof data === "object" && data !== null) {
+    const record = data as {
+      detail?: unknown;
+      message?: unknown;
+      error?: unknown;
+      msg?: unknown;
+    };
+    const fromDetail = formatApiDetail(record.detail);
+    if (fromDetail) return fromDetail;
+    for (const key of ["message", "msg", "error"] as const) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim()) {
+        return truncateErrorText(value);
+      }
+    }
+  }
+  if (typeof data === "string" && data.trim()) {
+    return truncateErrorText(data);
+  }
+  if (statusText && statusText.trim() && statusText !== "Not Found") {
+    return truncateErrorText(`${statusText} (HTTP ${status})`);
+  }
+  return statusFallbackMessage(status, `请求失败（HTTP ${status}）`);
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
@@ -58,16 +88,11 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    const detail =
-      typeof data === "object" && data !== null && "detail" in data
-        ? formatApiDetail((data as { detail: unknown }).detail)
-        : null;
-    const message =
-      detail ||
-      (response.statusText && response.statusText !== "Not Found"
-        ? response.statusText
-        : statusFallbackMessage(response.status, "Request failed"));
-    throw new ApiError(message, response.status, data);
+    throw new ApiError(
+      messageFromFailedResponse(response.status, response.statusText, data),
+      response.status,
+      data,
+    );
   }
 
   return data as T;
@@ -95,16 +120,11 @@ export async function* streamSse(
     } catch {
       /* ignore */
     }
-    const detail =
-      typeof data === "object" && data !== null && "detail" in data
-        ? formatApiDetail((data as { detail: unknown }).detail)
-        : null;
-    const message =
-      detail ||
-      (response.statusText && response.statusText !== "Not Found"
-        ? response.statusText
-        : statusFallbackMessage(response.status, "Request failed"));
-    throw new ApiError(message, response.status, data);
+    throw new ApiError(
+      messageFromFailedResponse(response.status, response.statusText, data),
+      response.status,
+      data,
+    );
   }
   const reader = response.body?.getReader();
   if (!reader) return;
@@ -140,6 +160,11 @@ export const api = {
       method: "PUT",
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
+  patch: <T>(path: string, body?: unknown) =>
+    apiFetch<T>(path, {
+      method: "PATCH",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
   upload: async <T>(path: string, form: FormData) => {
     const headers = new Headers();
@@ -161,16 +186,11 @@ export const api = {
       } catch {
         /* ignore */
       }
-      const detail =
-        typeof data === "object" && data !== null && "detail" in data
-          ? formatApiDetail((data as { detail: unknown }).detail)
-          : null;
-      const message =
-        detail ||
-        (response.statusText && response.statusText !== "Not Found"
-          ? response.statusText
-          : statusFallbackMessage(response.status, "Request failed"));
-      throw new ApiError(message, response.status, data);
+      throw new ApiError(
+        messageFromFailedResponse(response.status, response.statusText, data),
+        response.status,
+        data,
+      );
     }
     return response.blob();
   },

@@ -12,7 +12,10 @@ export interface UploadedMediaFile {
 export function canvasMediaPreviewUrl(url: string, width = 512): string {
   const raw = String(url || "").trim();
   if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
-  if (!raw.startsWith("/output/") && !raw.startsWith("/assets/")) return raw;
+  // History parity: remote https URLs must go through download proxy or <img> stays blank.
+  if (!raw.startsWith("/output/") && !raw.startsWith("/assets/")) {
+    return canvasDisplayMediaUrl(raw);
+  }
   const w = Math.max(64, Math.min(2048, Math.round(width)));
   return `/api/media-preview?w=${w}&url=${encodeURIComponent(raw)}`;
 }

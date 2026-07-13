@@ -10,11 +10,15 @@ function storageStatePath(userData) {
   return path.join(userData, 'storage-state.json');
 }
 
+/**
+ * Default Settings「数据目录」: Electron userData/data (Windows: LOCALAPPDATA/Infinite Canvas/data).
+ * Override by completing first-run storage setup or setting INFINITE_CANVAS_DATA_DIR.
+ */
 function defaultStorageRoot(userData) {
   if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, 'Infinite Canvas', 'storage');
+    return path.join(process.env.LOCALAPPDATA, 'Infinite Canvas', 'data');
   }
-  return path.join(userData, 'storage');
+  return path.join(userData, 'data');
 }
 
 async function readStorageState(userData) {
@@ -27,23 +31,54 @@ async function readStorageState(userData) {
   }
 }
 
+async function writeStorageState(userData, state) {
+  await fsp.mkdir(userData, { recursive: true });
+  await fsp.writeFile(storageStatePath(userData), JSON.stringify(state, null, 2), 'utf8');
+}
+
 async function needsStorageSetup(userData) {
   const state = await readStorageState(userData);
   return !(state?.completed && state.schemaVersion === STORAGE_SCHEMA_VERSION);
 }
 
-function storageLayout(root) {
-  const resolved = path.resolve(root);
+/**
+ * Chosen folder IS Settings「数据目录」(DATA_DIR). All writable trees nest under it.
+ * Layout matches backend/config.py defaults so Electron and FastAPI agree.
+ */
+function storageLayout(dataDir) {
+  const resolved = path.resolve(dataDir);
+  const objects = path.join(resolved, 'objects');
   return {
     root: resolved,
-    data: path.join(resolved, 'data'),
-    assets: path.join(resolved, 'objects'),
-    output: path.join(resolved, 'exports'),
+    data: resolved,
+    assets: objects,
+    objects,
+    output: path.join(resolved, 'output'),
     workflows: path.join(resolved, 'workflows'),
     config: path.join(resolved, 'config'),
     apiEnv: path.join(resolved, 'config', 'api.env'),
     minio: path.join(resolved, 'minio')
   };
+}
+
+/**
+ * Older packaged builds used parent/storage with sibling data/, objects/, exports/.
+ * Settings showed parent/data — remap so DATA_DIR is the single root.
+ */
+function resolveEffectiveDataDir(configuredRoot) {
+  const resolved = path.resolve(configuredRoot);
+  const nestedData = path.join(resolved, 'data');
+  const siblingObjects = path.join(resolved, 'objects');
+  const siblingExports = path.join(resolved, 'exports');
+  const looksLikeParentLayout =
+    fs.existsSync(nestedData) &&
+    (fs.existsSync(siblingObjects) || fs.existsSync(siblingExports)) &&
+    !fs.existsSync(path.join(resolved, 'projects.json')) &&
+    !fs.existsSync(path.join(resolved, 'canvases'));
+  if (looksLikeParentLayout) {
+    return nestedData;
+  }
+  return resolved;
 }
 
 function formatBytes(bytes) {
@@ -128,11 +163,11 @@ async function copyMissing(source, destination) {
   await fsp.copyFile(source, destination);
 }
 
-async function initializeStorage(root, appDir) {
-  const layout = storageLayout(root);
+async function initializeStorage(dataDir, appDir, options = {}) {
+  const layout = storageLayout(dataDir);
   await Promise.all([
     fsp.mkdir(layout.data, { recursive: true }),
-    fsp.mkdir(layout.assets, { recursive: true }),
+    fsp.mkdir(layout.objects, { recursive: true }),
     fsp.mkdir(layout.output, { recursive: true }),
     fsp.mkdir(layout.workflows, { recursive: true }),
     fsp.mkdir(layout.config, { recursive: true })
@@ -141,11 +176,21 @@ async function initializeStorage(root, appDir) {
   // Seed bundled defaults and copy legacy user files once. Existing destination
   // files always win, so upgrades cannot overwrite user content.
   await copyMissing(path.join(appDir, 'data'), layout.data);
-  await copyMissing(path.join(appDir, 'assets'), layout.assets);
+  await copyMissing(path.join(appDir, 'assets'), layout.objects);
   await copyMissing(path.join(appDir, 'output'), layout.output);
   await copyMissing(path.join(appDir, 'workflows'), layout.workflows);
   await copyMissing(path.join(appDir, 'API', '.env'), layout.apiEnv);
   await copyMissing(path.join(appDir, 'history.json'), path.join(layout.data, 'history.json'));
+
+  // Consolidate old sibling layout (parent/objects, parent/exports) under DATA_DIR.
+  if (options.legacyParent) {
+    const parent = path.resolve(options.legacyParent);
+    await copyMissing(path.join(parent, 'objects'), layout.objects);
+    await copyMissing(path.join(parent, 'exports'), layout.output);
+    await copyMissing(path.join(parent, 'assets'), layout.objects);
+    await copyMissing(path.join(parent, 'workflows'), layout.workflows);
+    await copyMissing(path.join(parent, 'config', 'api.env'), layout.apiEnv);
+  }
   return layout;
 }
 
@@ -156,30 +201,43 @@ async function completeStorageSetup(userData, root, appDir, forbiddenRoot = '') 
     error.code = 'INVALID_STORAGE_ROOT';
     throw error;
   }
-  await initializeStorage(validation.root, appDir);
+  const dataDir = validation.root;
+  await initializeStorage(dataDir, appDir);
   const state = {
     schemaVersion: STORAGE_SCHEMA_VERSION,
     completed: true,
-    root: validation.root,
+    root: dataDir,
     configuredAt: new Date().toISOString()
   };
-  await fsp.mkdir(userData, { recursive: true });
-  await fsp.writeFile(storageStatePath(userData), JSON.stringify(state, null, 2), 'utf8');
-  return { ...state, ...validation, layout: storageLayout(validation.root) };
+  await writeStorageState(userData, state);
+  return { ...state, ...validation, layout: storageLayout(dataDir) };
 }
 
 async function resolveStorage(userData, appDir, options = {}) {
   const state = await readStorageState(userData);
-  const root = state?.root || defaultStorageRoot(userData);
-  if (options.initialize !== false) await initializeStorage(root, appDir);
-  return { root: path.resolve(root), state, layout: storageLayout(root) };
+  const configured = state?.root || defaultStorageRoot(userData);
+  const configuredResolved = path.resolve(configured);
+  const dataDir = resolveEffectiveDataDir(configuredResolved);
+  const legacyParent = dataDir !== configuredResolved ? configuredResolved : null;
+  if (options.initialize !== false) {
+    await initializeStorage(dataDir, appDir, { legacyParent });
+  }
+  if (state && path.resolve(state.root) !== path.resolve(dataDir)) {
+    await writeStorageState(userData, {
+      ...state,
+      root: dataDir,
+      migratedFrom: state.root,
+      migratedAt: new Date().toISOString()
+    });
+  }
+  return { root: path.resolve(dataDir), state, layout: storageLayout(dataDir) };
 }
 
 function applyStorageEnvironment(env, layout) {
   return {
     ...env,
-    INFINITE_CANVAS_STORAGE_ROOT: layout.root,
     INFINITE_CANVAS_DATA_DIR: layout.data,
+    INFINITE_CANVAS_OBJECTS_DIR: layout.objects,
     INFINITE_CANVAS_ASSETS_DIR: layout.assets,
     INFINITE_CANVAS_OUTPUT_DIR: layout.output,
     INFINITE_CANVAS_WORKFLOW_DIR: layout.workflows,
@@ -193,6 +251,7 @@ module.exports = {
   storageStatePath,
   defaultStorageRoot,
   storageLayout,
+  resolveEffectiveDataDir,
   readStorageState,
   needsStorageSetup,
   validateStorageRoot,

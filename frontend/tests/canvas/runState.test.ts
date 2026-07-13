@@ -16,7 +16,7 @@ describe("runState", () => {
   it("clears runStartedAt when a run finishes", () => {
     const cleared = clearRunState({
       running: true,
-      runStartedAt: 1_000,
+      runStartedAt: 1_700_000_000_000,
       model: "m",
     });
     expect(cleared.running).toBe(false);
@@ -25,8 +25,8 @@ describe("runState", () => {
   });
 
   it("resets elapsed to zero on a fresh run start", () => {
-    const t0 = 10_000;
-    const t1 = 40_000;
+    const t0 = 1_700_000_010_000;
+    const t1 = 1_700_000_040_000;
     vi.spyOn(Date, "now").mockReturnValue(t1);
 
     const afterFirst = clearRunState({
@@ -41,21 +41,30 @@ describe("runState", () => {
 
   it("does not count elapsed when not running", () => {
     expect(
-      runElapsedMs({ runStartedAt: Date.now() - 5000 }, false, Date.now()),
+      runElapsedMs(
+        { runStartedAt: Date.now() - 5000 },
+        false,
+        Date.now(),
+      ),
     ).toBe(0);
+  });
+
+  it("ignores non-epoch runStartedAt leftovers (e.g. duration 10000)", () => {
+    const now = 1_700_000_100_000;
+    expect(runElapsedMs({ runStartedAt: 10_000 }, true, now)).toBe(0);
   });
 
   it("normalizePersistedCanvasNodes clears stale running and pending", () => {
     const gen = createLegacyNode({
       id: "g1",
       kind: "generator",
-      settings: { running: true, runStartedAt: 1 },
+      settings: { running: true, runStartedAt: 1_700_000_000_000 },
     });
     const out = createLegacyNode({
       id: "o1",
       kind: "output",
       settings: {
-        _pending: [{ id: "p1", startedAt: 1 }],
+        _pending: [{ id: "p1", startedAt: 1_700_000_000_000 }],
       },
     });
     const next = normalizePersistedCanvasNodes([gen, out]);
@@ -64,5 +73,15 @@ describe("runState", () => {
     const pending = readPendingList(next[1]);
     expect(pending[0]?.failed).toBe(true);
     expect(pending[0]?.error).toBe("interrupted");
+  });
+
+  it("normalizePersistedCanvasNodes drops orphan runStartedAt without running", () => {
+    const gen = createLegacyNode({
+      id: "g1",
+      kind: "generator",
+      settings: { running: false, runStartedAt: 1_700_000_000_000 },
+    });
+    const next = normalizePersistedCanvasNodes([gen]);
+    expect(next[0].settings?.runStartedAt).toBeUndefined();
   });
 });

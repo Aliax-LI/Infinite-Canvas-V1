@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -6,17 +7,36 @@ VERSION_FILE = BASE_DIR / "VERSION"
 DESKTOP_BUILD_ID_FILE = BASE_DIR / "DESKTOP_BUILD_ID"
 FRONTEND_DIST_DIR = BASE_DIR / "frontend" / "dist"
 
-DATA_DIR = Path(os.getenv("INFINITE_CANVAS_DATA_DIR", str(BASE_DIR / "data"))).expanduser().resolve()
-DATABASE_PATH = Path(
-    os.getenv("INFINITE_CANVAS_DATABASE_PATH", str(DATA_DIR / "infinite-canvas.db"))
-).expanduser().resolve()
+_logger = logging.getLogger("infinite_canvas.storage")
+_STORAGE_ROOTS_LOGGED = False
+
+
+def _env_path(key: str) -> Path | None:
+    raw = os.getenv(key, "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser().resolve()
+
+
+def _resolve_under_data(env_key: str, relative: str, *, legacy: Path | None = None) -> Path:
+    """Prefer explicit env, else DATA_DIR/relative; fall back to legacy path if still in use."""
+    explicit = _env_path(env_key)
+    if explicit is not None:
+        return explicit
+    candidate = (DATA_DIR / relative).resolve()
+    if legacy is not None:
+        legacy_resolved = legacy.expanduser().resolve()
+        if not candidate.exists() and legacy_resolved.exists():
+            return legacy_resolved
+    return candidate
+
+
+DATA_DIR = _env_path("INFINITE_CANVAS_DATA_DIR") or (BASE_DIR / "data").resolve()
+DATABASE_PATH = _env_path("INFINITE_CANVAS_DATABASE_PATH") or (DATA_DIR / "infinite-canvas.db").resolve()
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "storage" / "migrations"
-API_ENV_FILE = Path(
-    os.getenv("INFINITE_CANVAS_API_ENV_FILE", str(BASE_DIR / "API" / ".env"))
-).expanduser().resolve()
-WORKFLOW_DIR = Path(
-    os.getenv("INFINITE_CANVAS_WORKFLOW_DIR", str(BASE_DIR / "workflows"))
-).expanduser().resolve()
+API_ENV_FILE = _env_path("INFINITE_CANVAS_API_ENV_FILE") or (BASE_DIR / "API" / ".env").resolve()
+# Bundled workflow templates live in-repo; packaged Electron overrides to DATA_DIR/workflows.
+WORKFLOW_DIR = _env_path("INFINITE_CANVAS_WORKFLOW_DIR") or (BASE_DIR / "workflows").resolve()
 CANVAS_DIR = DATA_DIR / "canvases"
 PROJECTS_PATH = DATA_DIR / "projects.json"
 MEDIA_PREVIEW_DIR = DATA_DIR / "media_previews"
@@ -26,19 +46,20 @@ SHARED_FOLDERS_PATH = DATA_DIR / "shared_folders.json"
 CONVERSATION_DIR = DATA_DIR / "conversations"
 HISTORY_PATH = DATA_DIR / "history.json"
 
-OUTPUT_DIR = Path(
-    os.getenv("INFINITE_CANVAS_OUTPUT_DIR", str(BASE_DIR / "output"))
-).expanduser().resolve()
-ASSETS_DIR = Path(
-    os.getenv("INFINITE_CANVAS_ASSETS_DIR", str(BASE_DIR / "assets"))
-).expanduser().resolve()
+# Object store is the canonical media tree under Settings「数据目录」.
+OBJECTS_DIR = _env_path("INFINITE_CANVAS_OBJECTS_DIR") or (DATA_DIR / "objects").resolve()
+# Legacy ASSETS_DIR aliases OBJECTS_DIR so /assets/* and ObjectStore share one tree.
+# Repo-root assets/ is retained as a read-only fallback for older local installs.
+_LEGACY_ASSETS = (BASE_DIR / "assets").resolve()
+ASSETS_DIR = _env_path("INFINITE_CANVAS_ASSETS_DIR") or OBJECTS_DIR
+LEGACY_ASSETS_DIR = _LEGACY_ASSETS if _LEGACY_ASSETS != ASSETS_DIR.resolve() else None
+OUTPUT_DIR = _env_path("INFINITE_CANVAS_OUTPUT_DIR") or (DATA_DIR / "output").resolve()
+_LEGACY_OUTPUT = (BASE_DIR / "output").resolve()
+LEGACY_OUTPUT_DIR = _LEGACY_OUTPUT if _LEGACY_OUTPUT != OUTPUT_DIR else None
 OUTPUT_INPUT_DIR = ASSETS_DIR / "input"
 OUTPUT_OUTPUT_DIR = ASSETS_DIR / "output"
 ASSET_LIBRARY_DIR = ASSETS_DIR / "library"
 LOCAL_UPLOAD_DIR = ASSETS_DIR / "uploads"
-OBJECTS_DIR = Path(
-    os.getenv("INFINITE_CANVAS_OBJECTS_DIR", str(DATA_DIR / "objects"))
-).expanduser().resolve()
 
 PROMPT_TEMPLATE_CANDIDATES = [
     BASE_DIR / "static" / "system-prompts" / "infinite-canvas-prompt-templates.md",
@@ -87,8 +108,8 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 DEFAULT_PROJECT_ID = "default"
 CANVAS_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
-LOCAL_IMAGE_IMPORT_MAX_BYTES = int(__import__('os').getenv('LOCAL_IMAGE_IMPORT_MAX_BYTES', str(50 * 1024 * 1024)))
-LOCAL_IMAGE_IMPORT_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+LOCAL_IMAGE_IMPORT_MAX_BYTES = int(os.getenv("LOCAL_IMAGE_IMPORT_MAX_BYTES", str(50 * 1024 * 1024)))
+LOCAL_IMAGE_IMPORT_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 CANVAS_COLORS = {"", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink", "slate"}
 
@@ -128,6 +149,27 @@ VOLCENGINE_DEFAULT_PROJECT_NAME = "default"
 VOLCENGINE_DEFAULT_REGION = "cn-beijing"
 
 
+def log_storage_roots_once() -> None:
+    """Log the Settings「数据目录」root and derived paths once per process."""
+    global _STORAGE_ROOTS_LOGGED
+    if _STORAGE_ROOTS_LOGGED:
+        return
+    _STORAGE_ROOTS_LOGGED = True
+    legacy = str(LEGACY_ASSETS_DIR) if LEGACY_ASSETS_DIR else "(none)"
+    legacy_out = str(LEGACY_OUTPUT_DIR) if LEGACY_OUTPUT_DIR else "(none)"
+    _logger.info(
+        "storage root (Settings 数据目录)=%s objects=%s assets=%s output=%s "
+        "legacy_assets=%s legacy_output=%s backend=%s",
+        DATA_DIR,
+        OBJECTS_DIR,
+        ASSETS_DIR,
+        OUTPUT_DIR,
+        legacy,
+        legacy_out,
+        STORAGE_BACKEND,
+    )
+
+
 def ensure_data_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     CANVAS_DIR.mkdir(parents=True, exist_ok=True)
@@ -141,6 +183,11 @@ def ensure_data_dirs() -> None:
     OBJECTS_DIR.mkdir(parents=True, exist_ok=True)
     for sub in ("input", "output", "uploads", "library", "previews"):
         (OBJECTS_DIR / sub).mkdir(parents=True, exist_ok=True)
+    # Pull repo-root assets/ (and empty legacy output/) into DATA_DIR once per process.
+    from backend.storage.legacy_media_migrate import migrate_legacy_media_once
+
+    migrate_legacy_media_once()
+    log_storage_roots_once()
 
 
 def _bootstrap_api_env() -> None:

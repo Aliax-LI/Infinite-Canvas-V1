@@ -1,4 +1,5 @@
 import { api } from "../../../shared/api/client";
+import { formatApiError } from "../../../shared/api/formatError";
 import type { AiConfig } from "../../chat/types";
 import {
   chatCapableProviders,
@@ -17,7 +18,11 @@ import {
   submitCanvasImageTask,
   type GenerationResult,
 } from "./generation";
-import { collectGenerationInput, collectLlmInput } from "./nodeSources";
+import {
+  collectLlmInput,
+  collectLlmMedia,
+  resolveGenerationPrompt,
+} from "./nodeSources";
 import {
   legacyNodesFromResultUrls,
   nextAppendPosition,
@@ -30,6 +35,9 @@ import {
   LTX_DIRECTOR_WORKFLOW,
   readLtxTimeline,
 } from "./ltxTimeline";
+import { generationKeyGateForNode } from "./generationKeyGate";
+import { msGenModelDef, resolveMsGenModelKey } from "./msGenModels";
+import { currentMsModelId, modelscopeLorasForModel } from "./msLora";
 
 const DEFAULT_VIDEO_MODEL = "veo3-fast";
 
@@ -185,14 +193,12 @@ export async function runGeneratorNode(
   viewport?: ViewportState,
   loopCtx?: RunLoopContext,
 ): Promise<RunNodeOutcome> {
-  const { prompt: wiredPrompt, refs } = collectGenerationInput(
+  const { prompt, refs, localPrompt } = resolveGenerationPrompt(
     node,
     nodes,
     connections,
     loopCtx,
   );
-  const nodePrompt = String(node.prompt ?? "").trim();
-  const prompt = wiredPrompt || nodePrompt;
   if (!prompt && !refs.length) {
     return { error: "需要提示词或参考图" };
   }
@@ -206,6 +212,10 @@ export async function runGeneratorNode(
     size: apiSettings.size,
     refUrls: refs,
   });
+  // History runGenerator: fire `count` parallel tasks, each requesting n=1.
+  // Do NOT set n=count here — backend online_image also expands by n, which
+  // would multiply to count² images (e.g. UI 2 → 4 slots).
+  const count = apiSettings.count;
   const payload = buildLegacyPayload(
     {
       prompt: prompt || "Edit the reference images.",
@@ -216,28 +226,36 @@ export async function runGeneratorNode(
         model: apiSettings.model,
         size,
         quality: apiSettings.quality,
-        n: apiSettings.count,
+        n: 1,
       },
     },
     refs,
   );
 
   try {
-    // Fork-first: history runGenerator → createCanvasImageTask + pollCanvasImageTask
-    // (not blocking POST /api/online-image).
-    const submitted = await submitCanvasImageTask(payload);
-    if (submitted.error) return { error: submitted.error };
-    const taskId = submitted.taskId;
-    if (!taskId) return { error: "未返回画布任务 ID" };
+    const taskResults = await Promise.all(
+      Array.from({ length: count }, async () => {
+        const submitted = await submitCanvasImageTask(payload);
+        if (submitted.error) return { error: submitted.error, urls: [] as string[] };
+        const taskId = submitted.taskId;
+        if (!taskId) return { error: "未返回画布任务 ID", urls: [] as string[] };
+        const polled = await pollLegacyUntilDone(taskId);
+        if (polled.error) return { error: polled.error, urls: [] as string[] };
+        const taskUrls = polled.urls?.length
+          ? polled.urls
+          : polled.url
+            ? [polled.url]
+            : [];
+        // One parallel slot → at most one image (defense if provider returns extras).
+        return { urls: taskUrls.slice(0, 1) };
+      }),
+    );
 
-    const polled = await pollLegacyUntilDone(taskId);
-    if (polled.error) return { error: polled.error };
-    const urls = polled.urls?.length
-      ? polled.urls
-      : polled.url
-        ? [polled.url]
-        : [];
-    if (!urls.length) return { error: "生成完成但未返回图片" };
+    const firstError = taskResults.find((r) => r.error)?.error;
+    const urls = taskResults.flatMap((r) => r.urls).slice(0, count);
+    if (!urls.length) {
+      return { error: firstError || "生成完成但未返回图片" };
+    }
 
     const pos = nextAppendPosition(nodes, viewport ?? { x: 0, y: 0, scale: 1 });
     const resultNodes = legacyNodesFromResultUrls(
@@ -247,7 +265,7 @@ export async function runGeneratorNode(
       "生成结果",
     ).map((n) => ({
       ...n,
-      prompt: prompt || nodePrompt,
+      prompt: prompt || localPrompt,
       kind: "generator",
       images: n.images.map((img) => ({ ...img, kind: "generator" })),
     }));
@@ -266,14 +284,12 @@ export async function runComfyNode(
   viewport?: ViewportState,
   loopCtx?: RunLoopContext,
 ): Promise<RunNodeOutcome> {
-  const { prompt: wiredPrompt, refs } = collectGenerationInput(
+  const { prompt, refs } = resolveGenerationPrompt(
     node,
     nodes,
     connections,
     loopCtx,
   );
-  const nodePrompt = String(node.prompt ?? "").trim();
-  const prompt = wiredPrompt || nodePrompt;
   if (!prompt && !refs.length) {
     return { error: "需要提示词或参考图" };
   }
@@ -325,14 +341,12 @@ export async function runVideoNode(
   viewport?: ViewportState,
   loopCtx?: RunLoopContext,
 ): Promise<RunNodeOutcome> {
-  const { prompt: wiredPrompt, refs } = collectGenerationInput(
+  const { prompt, refs } = resolveGenerationPrompt(
     node,
     nodes,
     connections,
     loopCtx,
   );
-  const nodePrompt = String(node.prompt ?? "").trim();
-  const prompt = wiredPrompt || nodePrompt;
   if (!prompt) return { error: "视频生成需要提示词" };
 
   const video = readNodeVideoSettings(node, config);
@@ -376,7 +390,9 @@ export async function runLlmNode(
   config?: AiConfig,
 ): Promise<RunNodeOutcome> {
   const wired = collectLlmInput(node, nodes, connections);
-  const input = wired || String(node.prompt ?? "").trim();
+  const input =
+    wired ||
+    String(node.settings?.userInput ?? node.prompt ?? "").trim();
   if (!input) return { error: "LLM 需要提示词输入" };
 
   const s = node.settings ?? {};
@@ -385,6 +401,7 @@ export async function runLlmNode(
     String(s.llmProvider ?? s.apiProvider ?? "") || providers[0]?.id || "comfly";
   const model =
     String(s.model ?? "") || resolveChatModel(config, providerId, {}, "");
+  const media = collectLlmMedia(node, nodes, connections);
 
   try {
     const res = await api.post<{ text?: string; error?: string }>(
@@ -395,6 +412,8 @@ export async function runLlmNode(
         ms_model: providerId === "modelscope" ? model : "",
         provider: providerId,
         system_prompt: String(s.systemPrompt ?? "You are a helpful assistant."),
+        images: media.images.map((m) => m.url),
+        videos: media.videos.map((m) => m.url),
       },
     );
     if (typeof res.error === "string" && res.error.trim()) {
@@ -408,31 +427,61 @@ export async function runLlmNode(
   }
 }
 
-/** Fork-first: history `runMsGenNode` → POST `/api/ms/generate`. */
+async function urlToDataUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return url;
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || url));
+      reader.onerror = () => reject(new Error("image read failed"));
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return url;
+  }
+}
+
+/** Fork-first: history `runMsGenNode` (ZImage / Qwen Edit / Klein / custom). */
 export async function runMsGenNode(
   node: LegacyNode,
   nodes: LegacyNode[],
   connections: LegacyConnection[],
   viewport?: ViewportState,
   loopCtx?: RunLoopContext,
+  config?: AiConfig,
 ): Promise<RunNodeOutcome> {
-  const { prompt: wiredPrompt, refs } = collectGenerationInput(
+  const keyGate = generationKeyGateForNode(node, config);
+  if (!keyGate.ready) {
+    return { error: keyGate.messageFallback };
+  }
+
+  const { prompt, refs } = resolveGenerationPrompt(
     node,
     nodes,
     connections,
     loopCtx,
   );
-  const nodePrompt = String(node.prompt ?? "").trim();
-  const prompt = wiredPrompt || nodePrompt;
   if (!prompt) return { error: "需要提示词" };
 
   const s = node.settings ?? {};
+  const modelKey = resolveMsGenModelKey(s.msgenModel);
+  const msModel = msGenModelDef(modelKey);
+  if (msModel.supportsImage && !refs.length) {
+    return { error: "请先连接图片" };
+  }
+
   let width = Number(s.msWidth ?? s.width ?? 1024);
   let height = Number(s.msHeight ?? s.height ?? 1024);
-  if (String(s.ratio ?? "") === "source" && refs[0]) {
+  const msRatio = String(s.msRatio ?? s.ratio ?? "square");
+  const msResolution = String(
+    s.msResolution ?? s.resolution ?? "1k",
+  ) as OnlineResolution;
+  {
     const size = await resolveGeneratorApiSize({
-      ratio: "source",
-      resolution: String(s.resolution ?? "1k"),
+      ratio: msRatio === "source" ? "source" : msRatio,
+      resolution: msResolution,
       customRatio: String(s.customRatio ?? ""),
       refUrls: refs,
     });
@@ -444,28 +493,100 @@ export async function runMsGenNode(
   }
 
   try {
-    const res = await api.post<Record<string, unknown>>("/api/ms/generate", {
-      prompt,
-      width,
-      height,
-      size: `${width}x${height}`,
-      image_urls: refs,
-    });
-    if (typeof res.error === "string" && res.error.trim()) {
-      return { error: res.error.trim() };
+    const count = Math.max(1, Math.min(8, Number(s.count ?? 1) || 1));
+    const imageUrls: string[] = [];
+    if (msModel.supportsImage || msModel.acceptsImage) {
+      for (const ref of refs.slice(0, 8)) {
+        if (ref) imageUrls.push(await urlToDataUrl(ref));
+      }
     }
-    let urls = extractGenerationUrls(res);
-    const taskId = res.task_id ?? res.taskId;
-    if (!urls.length && taskId) {
-      const polled = await pollLegacyUntilDone(String(taskId), 60, 2000);
-      if (polled.error) return { error: polled.error };
-      urls = polled.urls?.length
-        ? polled.urls
-        : polled.url
-          ? [polled.url]
-          : [];
-    }
-    if (!urls.length) return { error: "MS 生成未返回图片" };
+
+    const msModelId = currentMsModelId(modelKey, s, config);
+    const msLoras = modelscopeLorasForModel(config, msModelId);
+
+    const submitOne = async () => {
+      let apiBody: Record<string, unknown>;
+      if (modelKey === "zimage") {
+        // ModelScope cloud Z-Image (history `/generate`); use /api/ms/generate payload.
+        apiBody = {
+          prompt,
+          model: msModelId,
+          width,
+          height,
+          size: `${width}x${height}`,
+        };
+      } else if (modelKey === "qwen_edit") {
+        apiBody = {
+          prompt,
+          image_urls: imageUrls,
+          resolution: `${width}x${height}`,
+        };
+      } else if (modelKey === "custom") {
+        apiBody = {
+          prompt,
+          model: msModelId,
+          image_urls: imageUrls,
+          width,
+          height,
+          size: `${width}x${height}`,
+        };
+      } else {
+        apiBody = {
+          prompt,
+          model: msModel.modelId,
+          image_urls: imageUrls,
+          width,
+          height,
+          size: `${width}x${height}`,
+        };
+      }
+
+      if (s.msLoraEnabled) {
+        const selected =
+          msLoras.find(
+            (lora) => lora.id === String(s.msLoraId || "").trim(),
+          ) || msLoras[0];
+        const loraId = String(selected?.id || s.msLoraId || "").trim();
+        if (!loraId) {
+          return {
+            error: "当前模型没有可用 LoRA，请先到 API 设置绑定",
+            urls: [] as string[],
+          };
+        }
+        apiBody.loras = {
+          [loraId]: Number(s.msLoraStrength ?? selected?.strength ?? 0.8),
+        };
+      }
+
+      const endpoint = msModel.endpoint;
+
+      const res = await api.post<Record<string, unknown>>(endpoint, apiBody);
+      if (typeof res.error === "string" && res.error.trim()) {
+        return { error: res.error.trim(), urls: [] as string[] };
+      }
+      let urls = extractGenerationUrls(res);
+      const taskId = res.task_id ?? res.taskId;
+      if (!urls.length && taskId) {
+        const polled = await pollLegacyUntilDone(String(taskId), 60, 2000);
+        if (polled.error) return { error: polled.error, urls: [] as string[] };
+        urls = polled.urls?.length
+          ? polled.urls
+          : polled.url
+            ? [polled.url]
+            : [];
+      }
+      if (!urls.length && typeof res.url === "string" && res.url) {
+        urls = [res.url];
+      }
+      return { urls: urls.slice(0, 1) };
+    };
+
+    const results = await Promise.all(
+      Array.from({ length: count }, () => submitOne()),
+    );
+    const firstError = results.find((r) => r.error)?.error;
+    const urls = results.flatMap((r) => r.urls).slice(0, count);
+    if (!urls.length) return { error: firstError || "MS 生成未返回图片" };
 
     const pos = nextAppendPosition(nodes, viewport ?? { x: 0, y: 0, scale: 1 });
     const resultNodes = legacyNodesFromResultUrls(urls, pos.x, pos.y, "MS 结果").map(
@@ -477,7 +598,7 @@ export async function runMsGenNode(
     );
     return { urls, url: urls[0], resultNodes };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "MS 生成失败" };
+    return { error: formatApiError(err, "MS 生成失败") };
   }
 }
 
@@ -499,13 +620,12 @@ export async function runRhNode(
     return { error: "请填写 RunningHub webappId" };
   }
 
-  const { prompt: wiredPrompt, refs } = collectGenerationInput(
+  const { prompt, refs } = resolveGenerationPrompt(
     node,
     nodes,
     connections,
     loopCtx,
   );
-  const prompt = wiredPrompt || String(node.prompt ?? "").trim();
   const savedNodeInfo = Array.isArray(node.settings?.nodeInfoList)
     ? (node.settings.nodeInfoList as RunningHubNodeInfo[])
     : [];
@@ -583,13 +703,12 @@ export async function runLtxDirectorNode(
   viewport?: ViewportState,
   loopCtx?: RunLoopContext,
 ): Promise<RunNodeOutcome> {
-  const { prompt: wiredPrompt } = collectGenerationInput(
+  const { prompt: globalPrompt } = resolveGenerationPrompt(
     node,
     nodes,
     connections,
     loopCtx,
   );
-  const globalPrompt = wiredPrompt || node.prompt || "";
   const timeline = readLtxTimeline(node);
   const hasSegPrompt = timeline.segments.some((s) => String(s.prompt ?? "").trim());
   const hasImageSeg = timeline.segments.some(
@@ -688,6 +807,10 @@ export async function runCanvasNode(
   // Re-entry guard lives in LegacyCanvasPage.handleRunNode (runningNodeIds /
   // settings.running checked *before* flipping running→true). Do not reject
   // here: the page stamps running:true for UI before calling this function.
+  const keyGate = generationKeyGateForNode(node, config);
+  if (!keyGate.ready) {
+    return { error: keyGate.messageFallback };
+  }
   switch (node.kind) {
     case "generator":
       return runGeneratorNode(node, nodes, connections, config, viewport, loopCtx);
@@ -696,7 +819,7 @@ export async function runCanvasNode(
     case "video":
       return runVideoNode(node, nodes, connections, config, viewport, loopCtx);
     case "msgen":
-      return runMsGenNode(node, nodes, connections, viewport, loopCtx);
+      return runMsGenNode(node, nodes, connections, viewport, loopCtx, config);
     case "llm":
       return runLlmNode(node, nodes, connections, config);
     case "rh":
@@ -743,7 +866,17 @@ export function defaultSettingsForKind(
     };
   }
   if (kind === "msgen") {
-    return { msWidth: 1024, msHeight: 1024, count: 1 };
+    return {
+      msgenModel: "zimage",
+      msRatio: "square",
+      msResolution: "1k",
+      ratio: "square",
+      resolution: "1k",
+      msWidth: 1024,
+      msHeight: 1024,
+      count: 1,
+      msLoraEnabled: false,
+    };
   }
   if (kind === "llm") {
     const providers = chatCapableProviders(config);
@@ -756,7 +889,7 @@ export function defaultSettingsForKind(
     };
   }
   if (kind === "rh") {
-    return { rhMode: "workflow", workflowId: "", webappId: "" };
+    return { rhMode: "workflow", workflowId: "", webappId: "", count: 1 };
   }
   if (kind === "ltxDirector") {
     return {

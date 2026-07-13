@@ -1,14 +1,14 @@
 import {
   ImagePlus,
+  Library,
   Link2,
   Maximize2,
   Ratio,
   Trash2,
   Upload,
-  BookOpen,
 } from "lucide-react";
 import { NodeRunningBadge } from "./CanvasRunUi";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLegacyCanvasStore } from "../core/state";
 import { nodeDragWorldPosition } from "../core/nodeDrag";
@@ -24,6 +24,11 @@ import {
   type LegacyImageFit,
 } from "../core/imageFit";
 import { isNodeDragSurface } from "../core/nodeInteraction";
+import {
+  clampLegacyNodeSize,
+  isLegacyNodeSized,
+  LEGACY_RESIZE_MIN_H,
+} from "../core/nodeResize";
 import {
   clearDragLivePositions,
   setDragLivePositions,
@@ -42,13 +47,20 @@ import {
   GeneratorNodeBody,
   isRunnableGeneratorKind,
 } from "./GeneratorNodeBody";
-import { generatorSources } from "../core/nodeSources";
+import { generatorSources, collectLlmInput, collectLlmMedia } from "../core/nodeSources";
 import { OutputNodeBody } from "./OutputNodeBody";
 import { LoopNodeBody } from "./LoopNodeBody";
 import { GroupNodeBody } from "./GroupNodeBody";
 import { PromptGroupNodeBody } from "./PromptGroupNodeBody";
 import { LtxDirectorNodeBody } from "./LtxDirectorNodeBody";
 import type { RefObject } from "react";
+
+/** History `PROMPT_TEXT_MAX_LENGTH` in canvas.js */
+const PROMPT_TEXT_MAX_LENGTH = 20000;
+
+function promptTextLength(text: string) {
+  return Array.from(String(text || "")).length;
+}
 
 interface LegacyNodeCardProps {
   node: LegacyNode;
@@ -74,6 +86,14 @@ interface LegacyNodeCardProps {
     mode?: "serial" | "parallel",
   ) => void;
   onPreviewImage?: (nodeId: string, url: string) => void;
+  onImageContextMenu?: (
+    nodeId: string,
+    url: string,
+    clientX: number,
+    clientY: number,
+    name?: string,
+  ) => void;
+  knifeMode?: boolean;
 }
 
 export function LegacyNodeCard({
@@ -91,6 +111,8 @@ export function LegacyNodeCard({
   onRunNode,
   onCascadeRun,
   onPreviewImage,
+  onImageContextMenu,
+  knifeMode = false,
 }: LegacyNodeCardProps) {
   const { t } = useTranslation("canvas");
   const {
@@ -99,6 +121,8 @@ export function LegacyNodeCard({
     moveNodes,
     removeNode,
     updateNode,
+    resizeNode,
+    pushUndo,
     connectFromId,
     startConnect,
     completeConnect,
@@ -109,6 +133,9 @@ export function LegacyNodeCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const dragOriginRef = useRef({ x: node.x, y: node.y });
   const dragStartClientRef = useRef({ x: 0, y: 0 });
+  const resizeOriginRef = useRef({ w: node.width, h: node.height });
+  const resizingRef = useRef(false);
+  const [emptyDragOver, setEmptyDragOver] = useState(false);
 
   const url = node.images?.[0]?.url;
   const preview = url ? canvasMediaPreviewUrl(url) : "";
@@ -120,20 +147,35 @@ export function LegacyNodeCard({
   const isOutput = node.kind === "output";
   const isImage = node.kind === "image";
   const isPrompt = node.kind === "prompt";
+  const isSized = isLegacyNodeSized(node.settings);
   const imageFit = readImageFit(node.settings);
   const natural = readNaturalSize(node.settings);
 
   const mediaH = useMemo(() => {
     if (!isImage || !url) return 128;
+    // Manual resize: fill remaining card height (history `.node.sized`).
+    if (isSized) return Math.max(72, node.height - 56);
     if (natural) return mediaHeightForAspect(node.width, natural.w, natural.h);
     return Math.max(128, node.height - 56);
-  }, [isImage, url, natural, node.width, node.height]);
+  }, [isImage, url, natural, node.width, node.height, isSized]);
 
   const showCascade = shouldShowCascadeButton(node.id, nodes, connections);
   const wiredSources = useMemo(
     () =>
       isGenerator ? generatorSources(node, nodes, connections) : [],
     [isGenerator, node, nodes, connections],
+  );
+  const llmWiredInput = useMemo(
+    () =>
+      node.kind === "llm" ? collectLlmInput(node, nodes, connections) : "",
+    [node, nodes, connections],
+  );
+  const llmWiredMedia = useMemo(
+    () =>
+      node.kind === "llm"
+        ? collectLlmMedia(node, nodes, connections)
+        : { images: [], videos: [] },
+    [node, nodes, connections],
   );
 
   const kindLabel = isLegacyNodeKind(node.kind)
@@ -149,7 +191,7 @@ export function LegacyNodeCard({
     const prev = readNaturalSize(node.settings);
     if (prev && prev.w === nw && prev.h === nh) {
       // Still ensure height tracks width for contain adaptive layout
-      if (imageFit === "contain") {
+      if (!isSized && imageFit === "contain") {
         const nextH = nodeHeightForMedia(node.width, nw, nh);
         if (Math.abs(nextH - node.height) > 2) {
           updateNode(node.id, { height: nextH });
@@ -157,12 +199,13 @@ export function LegacyNodeCard({
       }
       return;
     }
-    const nextH =
-      imageFit === "contain"
+    const nextH = isSized
+      ? node.height
+      : imageFit === "contain"
         ? nodeHeightForMedia(node.width, nw, nh)
         : Math.max(node.height, mediaHeightForAspect(node.width, nw, nh) + 56);
     updateNode(node.id, {
-      height: nextH,
+      ...(isSized ? {} : { height: nextH }),
       settings: {
         ...node.settings,
         naturalW: nw,
@@ -181,17 +224,20 @@ export function LegacyNodeCard({
 
   // Keep stored height aligned with rendered card (history offsetHeight → node.h).
   // Generator/output cards size by content; without this, wires using height/2 drift.
+  // Skip while user-resized (`settings.sized`) so shrink sticks.
   useEffect(() => {
     const el = cardRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
+      if (resizingRef.current) return;
+      const currentNode = useLegacyCanvasStore
+        .getState()
+        .nodes.find((n) => n.id === node.id);
+      if (!currentNode || isLegacyNodeSized(currentNode.settings)) return;
       const entry = entries[0];
       const nextH = Math.round(entry?.contentRect.height || el.offsetHeight);
       if (nextH <= 0) return;
-      const current = useLegacyCanvasStore
-        .getState()
-        .nodes.find((n) => n.id === node.id)?.height;
-      if (current == null || Math.abs(nextH - current) <= 2) return;
+      if (Math.abs(nextH - currentNode.height) <= 2) return;
       updateNode(node.id, { height: nextH });
     });
     ro.observe(el);
@@ -203,7 +249,7 @@ export function LegacyNodeCard({
     const patch: Partial<LegacyNode> = {
       settings: { ...node.settings, imageFit: fit },
     };
-    if (fit === "contain" && nat) {
+    if (!isSized && fit === "contain" && nat) {
       patch.height = nodeHeightForMedia(node.width, nat.w, nat.h);
     }
     updateNode(node.id, patch);
@@ -297,6 +343,43 @@ export function LegacyNodeCard({
     stopPropagation: true,
   });
 
+  const nodeResizeDrag = usePointerDrag({
+    stopPropagation: true,
+    onStart: (e) => {
+      e?.preventDefault();
+      if (!selected) selectNode(node.id);
+      pushUndo();
+      resizingRef.current = true;
+      const el = cardRef.current;
+      const rect = el?.getBoundingClientRect();
+      const scale = viewport.scale > 0 ? viewport.scale : 1;
+      resizeOriginRef.current = {
+        w: rect ? rect.width / scale : node.width,
+        h: rect ? rect.height / scale : node.height,
+      };
+      document.body.classList.add("canvas-node-resize");
+    },
+    onMove: (clientX, clientY, _dx, _dy, start) => {
+      if (!start) return;
+      const scale = viewport.scale > 0 ? viewport.scale : 1;
+      const next = clampLegacyNodeSize(
+        resizeOriginRef.current.w + (clientX - start.x) / scale,
+        resizeOriginRef.current.h + (clientY - start.y) / scale,
+      );
+      // Live DOM update for smooth drag; store sync keeps minimap/ports in sync.
+      if (cardRef.current) {
+        cardRef.current.style.width = `${next.width}px`;
+        cardRef.current.style.height = `${next.height}px`;
+        cardRef.current.style.minHeight = `${next.height}px`;
+      }
+      resizeNode(node.id, next.width, next.height);
+    },
+    onEnd: () => {
+      resizingRef.current = false;
+      document.body.classList.remove("canvas-node-resize");
+    },
+  });
+
   const portOutDrag = usePointerDrag({
     onStart: (e) => {
       if (!e || !containerRef.current) return;
@@ -332,6 +415,9 @@ export function LegacyNodeCard({
           error={runError}
           showCascade={showCascade}
           sources={wiredSources}
+          llmWiredInput={llmWiredInput}
+          llmWiredImageCount={llmWiredMedia.images.length}
+          llmWiredVideoCount={llmWiredMedia.videos.length}
           onUpdateSettings={(patch) =>
             updateNode(node.id, { settings: { ...node.settings, ...patch } })
           }
@@ -341,7 +427,15 @@ export function LegacyNodeCard({
         />
       );
     }
-    if (isOutput) return <OutputNodeBody node={node} />;
+    if (isOutput) {
+      return (
+        <OutputNodeBody
+          node={node}
+          onPreviewImage={onPreviewImage}
+          onImageContextMenu={onImageContextMenu}
+        />
+      );
+    }
     if (node.kind === "loop") {
       return (
         <LoopNodeBody
@@ -356,13 +450,54 @@ export function LegacyNodeCard({
     if (node.kind === "promptGroup") return <PromptGroupNodeBody node={node} />;
     if (node.kind === "ltxDirector") return <LtxDirectorNodeBody node={node} />;
     if (isPrompt) {
+      const charCount = promptTextLength(node.prompt);
+      const overLimit = charCount > PROMPT_TEXT_MAX_LENGTH;
       return (
-        <div className="px-2 pb-2" data-node-control="">
+        <div
+          className="flex min-h-0 flex-1 flex-col gap-1.5 px-2 pb-2"
+          data-node-control=""
+          data-testid={`legacy-prompt-editor-${node.id}`}
+        >
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <button
+              type="button"
+              className="inline-flex h-[23px] shrink-0 items-center justify-center gap-1 border border-[var(--border)] bg-[var(--bg)] px-1.5 text-[9.5px] font-extrabold text-[var(--muted)] transition-[transform,border-color,color,background-color] hover:-translate-y-px hover:border-gray-300 hover:text-[var(--text)]"
+              title={t("promptTemplateLibrary")}
+              data-testid={`legacy-prompt-template-${node.id}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenPromptTemplates?.(node.id);
+              }}
+            >
+              <Library className="h-3 w-3" />
+              <span>{t("promptTemplateShort")}</span>
+            </button>
+            <div
+              className={cn(
+                "flex shrink-0 items-center gap-1 text-[10.5px] font-extrabold leading-none select-none",
+                overLimit ? "text-red-600" : "text-slate-400",
+              )}
+              data-testid={`legacy-prompt-counter-${node.id}`}
+            >
+              <span>{charCount.toLocaleString()}</span>
+              <span>/ {PROMPT_TEXT_MAX_LENGTH.toLocaleString()}</span>
+            </div>
+          </div>
           <textarea
             value={node.prompt}
-            onChange={(e) => updateNode(node.id, { prompt: e.target.value })}
+            onChange={(e) => {
+              const text = e.target.value;
+              updateNode(node.id, {
+                prompt: text,
+                settings: { ...node.settings, text },
+              });
+            }}
             onPointerDown={(e) => e.stopPropagation()}
-            className="w-full min-h-[80px] border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:border-black focus:outline-none"
+            className={cn(
+              "w-full flex-1 resize-none border border-[#edf2f7] bg-[#fbfdff] px-3 py-3 text-[13px] leading-[1.6] outline-none focus:border-[var(--text)]",
+              isSized ? "min-h-0" : "min-h-[140px]",
+            )}
             placeholder={t("promptPlaceholder")}
             data-testid={`legacy-prompt-${node.id}`}
           />
@@ -371,13 +506,28 @@ export function LegacyNodeCard({
     }
     if (url) {
       return (
-        <div className="px-2 pb-1" data-testid={`legacy-media-${node.id}`}>
+        <div
+          className={cn("px-2 pb-1", isSized ? "min-h-0 flex-1" : null)}
+          data-testid={`legacy-media-${node.id}`}
+        >
           <div
-            className="block w-full rounded-lg overflow-hidden bg-gray-50 border border-gray-100 cursor-grab active:cursor-grabbing"
+            className="block w-full overflow-hidden border border-gray-100 bg-gray-50 cursor-grab active:cursor-grabbing"
             style={{ height: mediaH }}
             onDoubleClick={(e) => {
               e.stopPropagation();
               onPreviewImage?.(node.id, url);
+            }}
+            onContextMenu={(e) => {
+              if (!onImageContextMenu) return;
+              e.preventDefault();
+              e.stopPropagation();
+              onImageContextMenu(
+                node.id,
+                url,
+                e.clientX,
+                e.clientY,
+                node.images?.[0]?.name,
+              );
             }}
             data-testid={`legacy-node-preview-${node.id}`}
           >
@@ -401,16 +551,40 @@ export function LegacyNodeCard({
     return (
       <button
         type="button"
-        className="mx-2 mb-1 w-[calc(100%-1rem)] h-28 bg-gray-50 border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 text-xs hover:border-black hover:text-gray-600 transition-colors"
+        className={cn(
+          "mx-2 mb-2 flex h-[190px] min-h-[72px] w-[calc(100%-1rem)] flex-col items-center justify-center gap-2 border border-dashed bg-[#f8fafc] px-3 text-center text-[11px] font-bold text-slate-400 transition-colors",
+          emptyDragOver
+            ? "border-[var(--text)] bg-white text-[var(--text)]"
+            : "border-slate-300 hover:border-[var(--text)] hover:bg-white hover:text-[var(--text)]",
+        )}
         data-testid={`legacy-node-empty-${node.id}`}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           if (isImage) fileRef.current?.click();
         }}
+        onDragOver={(e) => {
+          if (!isImage) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setEmptyDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.stopPropagation();
+          setEmptyDragOver(false);
+        }}
+        onDrop={(e) => {
+          if (!isImage) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setEmptyDragOver(false);
+          if (e.dataTransfer.files?.length) onUpload(node.id, e.dataTransfer.files);
+        }}
       >
-        <ImagePlus className="w-5 h-5 mb-1" />
-        {t("clickDragPasteImage", { defaultValue: "点击上传" })}
+        <ImagePlus className="h-7 w-7 shrink-0" />
+        <div className="max-w-[220px] leading-snug">
+          {t("clickDragPasteImage")}
+        </div>
       </button>
     );
   };
@@ -419,48 +593,64 @@ export function LegacyNodeCard({
     <div
       ref={cardRef}
       className={cn(
-        "absolute border rounded-lg bg-white shadow-sm select-none transition-[box-shadow,border-color] duration-200",
+        "legacy-node-card absolute border bg-white shadow-[0_16px_42px_var(--shadow)] select-none transition-[outline,border-color] duration-150",
+        isSized ? "flex flex-col overflow-hidden" : null,
+        knifeMode && !selected
+          ? "outline outline-1 outline-dashed outline-red-500/45 outline-offset-4"
+          : null,
         running && !runError
-          ? "border-blue-400 ring-2 ring-blue-400/35 studio-canvas-node-running"
+          ? "border-blue-400 outline outline-2 outline-blue-400/40 studio-canvas-node-running"
           : selected || connecting
-            ? "border-black ring-2 ring-black/15"
+            ? "border-[var(--text)] outline outline-2 outline-[var(--text)] outline-offset-0"
             : connectTarget
               ? "border-blue-400"
               : cascadeHighlight === "current"
-                ? "border-blue-500 ring-2 ring-blue-400/40"
+                ? "border-blue-500 outline outline-2 outline-blue-400/40"
                 : cascadeHighlight === "upstream"
                   ? "border-blue-300"
-                  : "border-gray-200 hover:border-gray-300",
+                  : "border-[var(--border)] hover:border-gray-300",
         runError ? "border-red-300" : null,
       )}
       style={{
         left: node.x,
         top: node.y,
         width: node.width,
-        // Definite block height so port `top-1/2` resolves to mid-edge (history
-        // sized nodes). Content may grow; ResizeObserver syncs height upward.
-        minHeight: node.height,
+        // Manual resize locks both axes (history `.node.sized`); otherwise
+        // minHeight + ResizeObserver lets content grow for wire midpoints.
+        // OUTPUT follows content height (ComfyUI SaveImage–like): use the
+        // resize floor so a stale tall height cannot leave empty whitespace.
+        ...(isSized
+          ? { height: node.height, minHeight: node.height }
+          : {
+              minHeight: isOutput
+                ? LEGACY_RESIZE_MIN_H
+                : node.height,
+            }),
       }}
       data-testid={`legacy-node-${node.id}`}
       data-node-kind={node.kind}
       data-node-running={running ? "1" : "0"}
+      data-node-sized={isSized ? "1" : "0"}
+      data-selected={selected ? "1" : "0"}
       data-image-fit={isImage ? imageFit : undefined}
       aria-busy={running || undefined}
       {...nodeDrag.handlers}
     >
       {hasInPort ? (
         <div
-          className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-black bg-white z-10 cursor-crosshair"
+          className="absolute -left-[15px] top-1/2 z-10 h-11 w-11 -translate-y-1/2 cursor-crosshair"
           title={t("connectHere")}
           data-testid={`legacy-port-in-${node.id}`}
           data-port="in"
           {...portInDrag.handlers}
-        />
+        >
+          <span className="legacy-node-port-dot pointer-events-none absolute left-[15px] top-[15px] h-3.5 w-3.5 border-2 border-white bg-[#111827] shadow-[0_0_0_1px_#94a3b8]" />
+        </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-1 px-2 pt-1.5 pb-1">
+      <div className="flex shrink-0 items-center justify-between gap-1 px-2 pt-1.5 pb-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[10px] font-medium text-gray-500 tracking-wide truncate">
+          <span className="truncate text-[10px] font-extrabold uppercase tracking-wide text-gray-500">
             {kindLabel}
           </span>
           {running && !runError ? <NodeRunningBadge /> : null}
@@ -489,24 +679,9 @@ export function LegacyNodeCard({
               )}
             </button>
           ) : null}
-          {isPrompt ? (
-            <button
-              type="button"
-              className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"
-              title={t("promptTemplateShort")}
-              data-testid={`legacy-prompt-template-${node.id}`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenPromptTemplates?.(node.id);
-              }}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-            </button>
-          ) : null}
           <button
             type="button"
-            className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"
+            className="p-1 hover:bg-gray-100 text-gray-500"
             title={t("dragConnect")}
             data-testid={`legacy-node-connect-${node.id}`}
             onPointerDown={(e) => e.stopPropagation()}
@@ -563,21 +738,40 @@ export function LegacyNodeCard({
         </div>
       </div>
 
-      {renderBody()}
+      <div
+        className={cn(
+          isSized ? "flex min-h-0 flex-1 flex-col overflow-auto" : null,
+        )}
+      >
+        {renderBody()}
 
-      {isImage && caption ? (
-        <p className="text-[11px] px-2 pb-1.5 truncate text-gray-500">{caption}</p>
-      ) : null}
+        {isImage && caption ? (
+          <p className="text-[11px] px-2 pb-1.5 truncate text-gray-500 shrink-0">
+            {caption}
+          </p>
+        ) : null}
+      </div>
 
       {hasOutPort ? (
         <div
-          className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-black bg-white z-10 cursor-crosshair"
+          className="absolute -right-[15px] top-1/2 z-10 h-11 w-11 -translate-y-1/2 cursor-crosshair"
           title={t("dragConnect")}
           data-testid={`legacy-port-out-${node.id}`}
           data-port="out"
           {...portOutDrag.handlers}
-        />
+        >
+          <span className="legacy-node-port-dot pointer-events-none absolute left-[15px] top-[15px] h-3.5 w-3.5 border-2 border-white bg-[#111827] shadow-[0_0_0_1px_#94a3b8]" />
+        </div>
       ) : null}
+
+      <div
+        className="legacy-node-resize-handle resize-handle"
+        tabIndex={0}
+        aria-label={t("resize")}
+        title={t("resize")}
+        data-testid={`legacy-resize-${node.id}`}
+        {...nodeResizeDrag.handlers}
+      />
     </div>
   );
 }

@@ -184,7 +184,11 @@ describe("NodeCard delete", () => {
       />,
     );
     expect(screen.getByTestId("group-preview-group")).toBeTruthy();
-    expect(screen.getByTestId("connect-input-group")).toBeTruthy();
-    expect(screen.getByTestId("connect-port-group")).toBeTruthy();
+    const inPort = screen.getByTestId("connect-input-group");
+    const outPort = screen.getByTestId("connect-port-group");
+    expect(inPort).toBeTruthy();
+    expect(outPort).toBeTruthy();
+    expect(inPort.className).toContain("smart-node-port");
+    expect(outPort.className).toContain("smart-node-port");
   });
 });

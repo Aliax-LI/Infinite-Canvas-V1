@@ -522,6 +522,11 @@ async function runStartup() {
     } else {
       activeStorageLayout = (await resolveStorage(userData, appDir)).layout;
     }
+    if (activeStorageLayout) {
+      console.log(
+        `[storage] Settings 数据目录=${activeStorageLayout.data} objects=${activeStorageLayout.objects} output=${activeStorageLayout.output}`
+      );
+    }
   }
 
   if (setupWindow) {

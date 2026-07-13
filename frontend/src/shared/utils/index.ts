@@ -33,6 +33,15 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 export { rangeFillPercent, rangeFillStyle } from "./rangeFillStyle";
+export {
+  altKeyLabel,
+  deleteKeyLabel,
+  formatModShortcut,
+  hasPrimaryMod,
+  isApplePlatform,
+  modKeyLabel,
+  type PlatformShortcutEnv,
+} from "./platformShortcuts";
 
 export const CLIENT_ID_KEY = "smart_canvas_client_id";
 

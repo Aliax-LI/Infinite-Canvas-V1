@@ -95,7 +95,9 @@ async def angle_generate(req: CloudGenRequest) -> dict:
                 try:
                     detail = submit_res.json()
                 except Exception:
-                    detail = submit_res.text
+                    detail = (submit_res.text or "").strip()
+                if not detail:
+                    detail = f"ModelScope 返回 HTTP {submit_res.status_code}，无响应正文"
                 raise HTTPException(status_code=submit_res.status_code, detail=detail)
             task_id = submit_res.json().get("task_id")
             if not task_id:

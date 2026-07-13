@@ -1,5 +1,6 @@
 import type { LegacyConnection, LegacyNode } from "./types";
 import { createLegacyNode } from "./types";
+import { imageEditOutputPoint } from "./imageEdit";
 
 export interface NodeClipboard {
   nodes: LegacyNode[];
@@ -101,4 +102,19 @@ export function createImageNodeFromUrl(
     title,
     images: [{ url, kind: "image" }],
   });
+}
+
+/**
+ * Spawn an IMAGE (import) node to the right of a source node that already
+ * holds the given URL — same placement as crop/mask/outpaint, no auto-edge.
+ */
+export function createImportImageNodeFromSource(
+  source: { x: number; y: number; width: number; title?: string },
+  url: string,
+  name?: string,
+  offsetY = 0,
+): LegacyNode {
+  const point = imageEditOutputPoint(source.x, source.y, source.width, offsetY);
+  const titleBase = (name || source.title || "image").replace(/\.[^.]+$/, "");
+  return createImageNodeFromUrl(url, point.x, point.y, name || titleBase);
 }

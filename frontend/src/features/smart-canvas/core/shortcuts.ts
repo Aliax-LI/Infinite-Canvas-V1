@@ -1,3 +1,5 @@
+import { hasPrimaryMod } from "../../../shared/utils/platformShortcuts";
+
 export interface SelectedImage {
   nodeId: string;
   index: number;
@@ -44,7 +46,7 @@ export function matchShortcut(e: KeyboardEvent): ShortcutAction | null {
   if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) {
     return null;
   }
-  const mod = e.metaKey || e.ctrlKey;
+  const mod = hasPrimaryMod(e);
   for (const binding of SMART_CANVAS_SHORTCUTS) {
     const modMatch = binding.mod ? mod : !mod;
     const shiftMatch = binding.shift ? e.shiftKey : !e.shiftKey;

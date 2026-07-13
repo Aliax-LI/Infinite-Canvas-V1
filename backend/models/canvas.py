@@ -44,6 +44,10 @@ class ProjectUpdateRequest(BaseModel):
     order: Optional[int] = None
 
 
+class CanvasBatchIdsRequest(BaseModel):
+    ids: list[str] = []
+
+
 class CanvasAssetCheckRequest(BaseModel):
     urls: list[str] = []
 

@@ -1,5 +1,10 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Keyboard, X } from "lucide-react";
+import {
+  deleteKeyLabel,
+  formatModShortcut,
+} from "../../../shared/utils/platformShortcuts";
 
 interface ShortcutsModalProps {
   open: boolean;
@@ -12,6 +17,7 @@ const SHORTCUT_KEYS = [
   "copy",
   "paste",
   "undo",
+  "save",
   "delete",
   "zoomOverview",
   "pan",
@@ -19,8 +25,25 @@ const SHORTCUT_KEYS = [
   "contextMenu",
 ] as const;
 
+type ShortcutKey = (typeof SHORTCUT_KEYS)[number];
+
 export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
   const { t } = useTranslation("canvas");
+  const keyLabels = useMemo((): Record<ShortcutKey, string> => {
+    return {
+      boxSelect: formatModShortcut([t("shortcuts.keys.drag")]),
+      group: formatModShortcut(["G"]),
+      copy: formatModShortcut(["C"]),
+      paste: formatModShortcut(["V"]),
+      undo: formatModShortcut(["Z"]),
+      save: formatModShortcut(["S"]),
+      delete: deleteKeyLabel(),
+      zoomOverview: "Z",
+      pan: t("shortcuts.keys.pan"),
+      wheelZoom: t("shortcuts.keys.wheelZoom"),
+      contextMenu: t("shortcuts.keys.contextMenu"),
+    };
+  }, [t]);
 
   if (!open) return null;
 
@@ -57,7 +80,7 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
             >
               <span className="text-gray-600 flex-1">{t(`shortcuts.${key}`)}</span>
               <kbd className="shrink-0 font-mono text-[10px] px-1.5 py-0.5 border border-gray-200 rounded bg-gray-50 text-gray-700">
-                {t(`shortcuts.keys.${key}`)}
+                {keyLabels[key]}
               </kbd>
             </li>
           ))}

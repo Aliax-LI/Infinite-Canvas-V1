@@ -7,8 +7,9 @@ from typing import Any
 import httpx
 from fastapi import HTTPException
 
-from backend.models.generate import MsGenerateRequest
+from backend.models.generate import CloudGenRequest, MsGenerateRequest
 from backend.services.ai_config_service import modelscope_api_key, modelscope_image_api_root
+from backend.services.chat_service import selected_model
 from backend.services.history_service import append_history_record
 from backend.services.media_paths import output_path_for, output_url_for
 
@@ -53,6 +54,24 @@ async def download_ms_image(img_url: str, model: str) -> str:
     return img_url
 
 
+async def zimage_cloud_generate(req: CloudGenRequest) -> dict[str, Any]:
+    """History-compatible POST /generate — ModelScope Z-Image-Turbo cloud path."""
+    size = modelscope_size(req.resolution)
+    width_s, height_s = size.split("x", 1)
+    return await ms_generate(
+        MsGenerateRequest(
+            prompt=req.prompt,
+            api_key=req.api_key,
+            model=selected_model(req.model, "Tongyi-MAI/Z-Image-Turbo"),
+            width=int(width_s),
+            height=int(height_s),
+            size=size,
+            loras=req.loras,
+            client_id=req.client_id,
+        )
+    )
+
+
 async def ms_generate(req: MsGenerateRequest) -> dict[str, Any]:
     api_root = modelscope_image_api_root()
     clean_token = modelscope_api_key(req.api_key)
@@ -86,7 +105,9 @@ async def ms_generate(req: MsGenerateRequest) -> dict[str, Any]:
                 try:
                     detail = submit_res.json()
                 except Exception:
-                    detail = submit_res.text
+                    detail = (submit_res.text or "").strip()
+                if not detail:
+                    detail = f"ModelScope 返回 HTTP {submit_res.status_code}，无响应正文"
                 raise HTTPException(status_code=submit_res.status_code, detail=detail)
 
             task_id = submit_res.json().get("task_id")

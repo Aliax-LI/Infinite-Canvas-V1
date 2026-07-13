@@ -14,7 +14,7 @@ import {
 
 describe("applyGenerationResult", () => {
   it("creates output + pending, then resolves images on finish", () => {
-    const t0 = 50_000;
+    const t0 = 1_700_000_050_000;
     const gen = createLegacyNode({
       id: "g1",
       kind: "generator",
@@ -27,12 +27,13 @@ describe("applyGenerationResult", () => {
     expect(began!.newOutput?.kind).toBe("output");
     expect(began!.newConnection?.from).toBe("g1");
     expect(began!.newConnection?.to).toBe(began!.outputId);
+    expect(began!.pendings).toHaveLength(1);
     expect(readPendingList(began!.output)[0]?.startedAt).toBe(t0);
 
     const finished = finishGenerationOutput(
       gen,
       began!.output,
-      began!.pending.id,
+      began!.pendings.map((p) => p.id),
       { urls: ["/out/a.png"], url: "/out/a.png" },
       t0,
     );
@@ -43,8 +44,29 @@ describe("applyGenerationResult", () => {
     expect(finished.source.settings.running).toBe(false);
   });
 
+  it("opens N pending slots for multi-image count", () => {
+    const t0 = 1_700_000_100_000;
+    const gen = createLegacyNode({ id: "g1", kind: "generator", x: 0, y: 0 });
+    const began = beginGenerationOutput(gen, [gen], [], "cats", t0, 3);
+    expect(began?.pendings).toHaveLength(3);
+    expect(readPendingList(began!.output)).toHaveLength(3);
+    expect(began!.pendings.every((p) => p.startedAt === t0)).toBe(true);
+
+    const finished = finishGenerationOutput(
+      gen,
+      began!.output,
+      began!.pendings.map((p) => p.id),
+      {
+        urls: ["/out/a.png", "/out/b.png", "/out/c.png"],
+      },
+      t0,
+    );
+    expect(readPendingList(finished.output)).toHaveLength(0);
+    expect(finished.output.images).toHaveLength(3);
+  });
+
   it("reuses wired output and still opens a fresh pending slot", () => {
-    const t0 = 100_000;
+    const t0 = 1_700_000_100_000;
     const gen = createLegacyNode({ id: "g1", kind: "generator", x: 0, y: 0 });
     const out = createLegacyNode({ id: "o1", kind: "output", x: 500, y: 0 });
     const conn = { id: "c1", from: "g1", to: "o1" };

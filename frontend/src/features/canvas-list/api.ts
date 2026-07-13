@@ -22,6 +22,20 @@ export const canvasListApi = {
     api.post<{ canvas: CanvasRecord }>(`/api/canvases/${id}/restore`),
   purgeCanvas: (id: string) =>
     api.delete<{ ok: boolean }>(`/api/canvases/${id}/purge`),
+  restoreCanvasesBatch: (ids: string[]) =>
+    api.post<{
+      ok: boolean;
+      restored: number;
+      failed: number;
+      errors: Array<{ id: string; error: string }>;
+    }>("/api/canvases/trash/restore-batch", { ids }),
+  purgeCanvasesBatch: (ids: string[]) =>
+    api.post<{
+      ok: boolean;
+      purged: number;
+      failed: number;
+      errors: Array<{ id: string; error: string }>;
+    }>("/api/canvases/trash/purge-batch", { ids }),
   updateMeta: (
     id: string,
     payload: Partial<

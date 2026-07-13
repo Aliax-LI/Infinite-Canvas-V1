@@ -1,5 +1,6 @@
 import { memo } from "react";
 import {
+  connectionCubicPathD,
   connectionPathResolved,
   resolvePortPoint,
 } from "../core/layout";
@@ -81,6 +82,7 @@ export const ConnectionLayer = memo(function ConnectionLayer({
         const to = nodeMap.get(conn.to);
         if (!from || !to) return null;
         const { x1, y1, x2, y2 } = connectionPathResolved(from, to);
+        const d = connectionCubicPathD(x1, y1, x2, y2);
         const active =
           selected.has(conn.from) ||
           selected.has(conn.to) ||
@@ -88,11 +90,9 @@ export const ConnectionLayer = memo(function ConnectionLayer({
           connectFromId === conn.to;
         return (
           <g key={conn.id}>
-            <line
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
+            <path
+              d={d}
+              fill="none"
               stroke={wireStroke(from.kind, knifeMode, active)}
               strokeWidth={knifeMode ? 3 : active ? 2.5 : 2}
               data-testid={`legacy-connection-${conn.id}`}
@@ -105,11 +105,9 @@ export const ConnectionLayer = memo(function ConnectionLayer({
               }
             />
             {knifeMode ? (
-              <line
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
+              <path
+                d={d}
+                fill="none"
                 stroke="transparent"
                 strokeWidth={18}
                 className="pointer-events-auto"
@@ -138,11 +136,14 @@ export const ConnectionLayer = memo(function ConnectionLayer({
               tempWire.originKind === "in" ? "in" : "out",
             );
             return (
-              <line
-                x1={origin.x}
-                y1={origin.y}
-                x2={tempWire.x2}
-                y2={tempWire.y2}
+              <path
+                d={connectionCubicPathD(
+                  origin.x,
+                  origin.y,
+                  tempWire.x2,
+                  tempWire.y2,
+                )}
+                fill="none"
                 stroke={wireStroke(from.kind, false, true)}
                 strokeWidth={2.5}
                 strokeDasharray="6 6"

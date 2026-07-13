@@ -196,6 +196,62 @@ def purge_canvas(canvas_id: str) -> None:
     _repo().delete_file(canvas_id)
 
 
+def restore_canvases_batch(canvas_ids: list[str]) -> dict[str, Any]:
+    restored = 0
+    failed = 0
+    errors: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw_id in canvas_ids[:500]:
+        canvas_id = str(raw_id or "").strip()
+        if not canvas_id or canvas_id in seen:
+            continue
+        seen.add(canvas_id)
+        try:
+            restore_canvas(canvas_id)
+            restored += 1
+        except HTTPException as exc:
+            failed += 1
+            detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+            errors.append({"id": canvas_id, "error": detail})
+        except (OSError, TypeError, ValueError) as exc:
+            failed += 1
+            errors.append({"id": canvas_id, "error": str(exc)})
+    return {
+        "ok": failed == 0,
+        "restored": restored,
+        "failed": failed,
+        "errors": errors[:20],
+    }
+
+
+def purge_canvases_batch(canvas_ids: list[str]) -> dict[str, Any]:
+    purged = 0
+    failed = 0
+    errors: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw_id in canvas_ids[:500]:
+        canvas_id = str(raw_id or "").strip()
+        if not canvas_id or canvas_id in seen:
+            continue
+        seen.add(canvas_id)
+        try:
+            purge_canvas(canvas_id)
+            purged += 1
+        except HTTPException as exc:
+            failed += 1
+            detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+            errors.append({"id": canvas_id, "error": detail})
+        except (OSError, TypeError, ValueError) as exc:
+            failed += 1
+            errors.append({"id": canvas_id, "error": str(exc)})
+    return {
+        "ok": failed == 0,
+        "purged": purged,
+        "failed": failed,
+        "errors": errors[:20],
+    }
+
+
 def canvas_asset_url_value(value: Any) -> str:
     if isinstance(value, str):
         return value.strip()

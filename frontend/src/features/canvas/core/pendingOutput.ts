@@ -51,16 +51,19 @@ export function readPendingList(node: LegacyNode): PendingRun[] {
 }
 
 export function readOutputImages(node: LegacyNode): OutputImageEntry[] {
+  const fromSettings = Array.isArray(node.settings?.outputImages)
+    ? (node.settings.outputImages as OutputImageEntry[])
+    : [];
   if (node.images?.length) {
+    const byUrl = new Map(fromSettings.map((img) => [img.url, img]));
     return node.images.map((img) => ({
       url: img.url,
       kind: img.kind,
       name: img.name,
+      runMs: byUrl.get(img.url)?.runMs,
     }));
   }
-  const raw = node.settings?.outputImages;
-  if (Array.isArray(raw)) return raw as OutputImageEntry[];
-  return [];
+  return fromSettings;
 }
 
 export function hasDownstreamGenerator(
@@ -216,5 +219,10 @@ export function outputCompareUrlFor(url: string, node: LegacyNode): string | nul
 }
 
 export function formatPendingElapsed(pending: PendingRun, now = Date.now()): string {
-  return formatRunDuration(Math.max(0, now - Number(pending.startedAt || now)));
+  const started = Number(pending.startedAt);
+  // Reject non-epoch anchors (duration leftovers) — same rule as runElapsedMs.
+  if (!Number.isFinite(started) || started < 1_000_000_000_000) {
+    return formatRunDuration(0);
+  }
+  return formatRunDuration(Math.max(0, now - started));
 }

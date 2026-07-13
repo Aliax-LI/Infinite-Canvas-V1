@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Image, Layers, ListOrdered, MessageSquare } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Group, MessageSquareText, Repeat2, UploadCloud } from "lucide-react";
 import {
   createImageNode,
   createLoopNode,
@@ -17,11 +18,46 @@ interface CreateMenuProps {
   onCreate: (kind: CreateKind, x: number, y: number) => void;
 }
 
-const items: { kind: CreateKind; label: string; icon: typeof Image }[] = [
-  { kind: "image", label: "导入节点", icon: Image },
-  { kind: "group", label: "智能分组", icon: Layers },
-  { kind: "prompt", label: "Prompt 节点", icon: MessageSquare },
-  { kind: "loop", label: "Loop 节点", icon: ListOrdered },
+const itemDefs: {
+  kind: CreateKind;
+  labelKey: string;
+  labelFallback: string;
+  subKey: string;
+  subFallback: string;
+  icon: typeof UploadCloud;
+}[] = [
+  {
+    kind: "image",
+    labelKey: "createUpload",
+    labelFallback: "上传",
+    subKey: "createImportNodeSub",
+    subFallback: "支持图片/音频/视频/批量上传",
+    icon: UploadCloud,
+  },
+  {
+    kind: "group",
+    labelKey: "createGroup",
+    labelFallback: "分组",
+    subKey: "createGroupSub",
+    subFallback: "把提示词、图片、循环收进同一组",
+    icon: Group,
+  },
+  {
+    kind: "prompt",
+    labelKey: "createPrompt",
+    labelFallback: "提示词",
+    subKey: "createPromptSub",
+    subFallback: "手写或用 LLM 生成文本",
+    icon: MessageSquareText,
+  },
+  {
+    kind: "loop",
+    labelKey: "createLoop",
+    labelFallback: "循环",
+    subKey: "createLoopSub",
+    subFallback: "控制运行轮数、批次和变量",
+    icon: Repeat2,
+  },
 ];
 
 export function createNodeByKind(kind: CreateKind, x: number, y: number) {
@@ -38,6 +74,7 @@ export function createNodeByKind(kind: CreateKind, x: number, y: number) {
 }
 
 export function CreateMenu({ open, x, y, onClose, onCreate }: CreateMenuProps) {
+  const { t } = useTranslation("smart-canvas");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,28 +88,44 @@ export function CreateMenu({ open, x, y, onClose, onCreate }: CreateMenuProps) {
 
   if (!open) return null;
 
+  const menuW = Math.min(500, typeof window !== "undefined" ? window.innerWidth - 28 : 500);
+  const left = Math.max(14, Math.min(x, (typeof window !== "undefined" ? window.innerWidth : x) - menuW - 14));
+  const top = Math.max(14, Math.min(y, (typeof window !== "undefined" ? window.innerHeight : y) - 140));
+
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[160px] border border-[var(--border)] bg-[var(--bg)] shadow-lg py-1"
-      style={{ left: x, top: y }}
+      className="fixed z-[75] border border-[var(--border)] bg-[var(--bg)]/95 p-2 shadow-[0_22px_58px_var(--shadow)] backdrop-blur-xl"
+      style={{ left, top, width: menuW }}
       data-testid="create-menu"
+      onMouseDown={(e) => e.stopPropagation()}
     >
-      {items.map(({ kind, label, icon: Icon }) => (
-        <button
-          key={kind}
-          type="button"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--nav-hover-bg)] text-left"
-          data-testid={`create-menu-${kind}`}
-          onClick={() => {
-            onCreate(kind, x, y);
-            onClose();
-          }}
-        >
-          <Icon className="w-4 h-4" />
-          {label}
-        </button>
-      ))}
+      <div className="grid grid-cols-4 gap-2">
+        {itemDefs.map(({ kind, labelKey, labelFallback, subKey, subFallback, icon: Icon }) => (
+          <button
+            key={kind}
+            type="button"
+            className="flex min-h-24 flex-col items-start gap-2 border border-[var(--border)] bg-[var(--card,var(--bg))] p-2.5 text-left transition-[transform,border-color,box-shadow] hover:-translate-y-0.5 hover:border-[var(--text)] hover:shadow-[0_10px_24px_rgba(15,23,42,0.1)]"
+            data-testid={`create-menu-${kind}`}
+            onClick={() => {
+              onCreate(kind, x, y);
+              onClose();
+            }}
+          >
+            <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center border border-[var(--border)] bg-[var(--soft,var(--nav-hover-bg))]">
+              <Icon className="h-[17px] w-[17px]" />
+            </span>
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="text-[11.5px] font-extrabold leading-tight">
+                {t(labelKey, { defaultValue: labelFallback })}
+              </span>
+              <span className="line-clamp-2 min-h-6 text-[9.5px] font-semibold leading-snug text-[var(--muted)]">
+                {t(subKey, { defaultValue: subFallback })}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,8 @@ MIGRATED_ROUTES = {
     ("POST", "/api/update-from-github"),
     ("GET", "/api/canvases"),
     ("GET", "/api/canvases/trash"),
+    ("POST", "/api/canvases/trash/restore-batch"),
+    ("POST", "/api/canvases/trash/purge-batch"),
     ("POST", "/api/canvases"),
     ("GET", "/api/canvases/{canvas_id}/meta"),
     ("POST", "/api/canvases/{canvas_id}/meta"),
@@ -161,6 +163,7 @@ MIGRATED_ROUTES = {
     ("POST", "/api/angle/poll_status"),
     ("POST", "/api/angle/generate"),
     ("POST", "/api/ms/generate"),
+    ("POST", "/generate"),
     ("POST", "/api/generate"),
 }
 

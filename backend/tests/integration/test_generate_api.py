@@ -83,6 +83,64 @@ def test_ms_generate_requires_key(client):
     assert response.status_code == 400
 
 
+def test_generate_cloud_requires_key(client):
+    response = client.post("/generate", json={"prompt": "a cat", "resolution": "1024x1024"})
+    assert response.status_code == 400
+    assert "ModelScope" in response.json()["detail"]
+
+
+def test_generate_cloud_zimage_mock(client, monkeypatch, tmp_path):
+    monkeypatch.setattr("backend.services.history_service.HISTORY_FILE", tmp_path / "history.json")
+    monkeypatch.setattr("backend.services.ms_generate_service.MS_GENERATE_POLL_MAX", 2)
+    monkeypatch.setattr("backend.services.ms_generate_service.MS_GENERATE_POLL_INTERVAL", 0)
+    monkeypatch.setattr("backend.services.ms_generate_service.modelscope_api_key", lambda explicit_key="": "ms-test")
+
+    posted = {}
+
+    class FakeResponse:
+        def __init__(self, status_code=200, payload=None, text=""):
+            self.status_code = status_code
+            self._payload = payload or {}
+            self.text = text
+            self.content = b"ok"
+
+        def json(self):
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, timeout=None):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            posted["url"] = url
+            posted["json"] = json
+            return FakeResponse(200, {"task_id": "zimage-task-1"})
+
+        async def get(self, url, headers=None):
+            return FakeResponse(200, {"task_status": "SUCCEED", "output_images": ["https://example.com/z.png"]})
+
+    monkeypatch.setattr("backend.services.ms_generate_service.httpx.AsyncClient", FakeClient)
+
+    async def fake_download(img_url, model):
+        return "/assets/output/zimage_test.png"
+
+    monkeypatch.setattr("backend.services.ms_generate_service.download_ms_image", fake_download)
+    response = client.post(
+        "/generate",
+        json={"prompt": "一个女生", "resolution": "1024x1024"},
+    )
+    assert response.status_code == 200
+    assert response.json()["url"] == "/assets/output/zimage_test.png"
+    assert posted["json"]["model"] == "Tongyi-MAI/Z-Image-Turbo"
+    assert posted["json"]["size"] == "1024x1024"
+
+
 def test_ms_generate_mock(client, monkeypatch, tmp_path):
     monkeypatch.setattr("backend.services.history_service.HISTORY_FILE", tmp_path / "history.json")
     monkeypatch.setattr("backend.services.angle_service.MS_GENERATE_POLL_MAX", 2)

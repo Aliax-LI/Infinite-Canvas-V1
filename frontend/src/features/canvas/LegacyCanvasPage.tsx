@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft,
-  Download,
-  FolderOpen,
-  GitBranch,
-  Keyboard,
-  LayoutGrid,
-  LocateFixed,
-  Save,
-  Scissors,
-  ScrollText,
-  Sparkles,
+  PackageOpen,
   Upload,
   X,
 } from "lucide-react";
@@ -37,8 +27,10 @@ import {
   finishGenerationOutput,
   type BeginOutputSession,
 } from "./core/applyGenerationResult";
+import { conflictCanvasUpdatedAt } from "../../shared/api/canvasConflict";
 import { normalizeGenerationError } from "../../shared/api/formatError";
 import { runCanvasNode, type RunLoopContext } from "./core/runNodeGeneration";
+import { resolveGenerationPrompt } from "./core/nodeSources";
 import { clearRunState, stampRunStart } from "./core/runState";
 import { computeCascadeOrder } from "./core/cascade";
 import {
@@ -56,9 +48,9 @@ import {
 } from "./core/linkCreate";
 import { resolveConnectDropTarget, resolveConnectSnapTarget } from "./core/connectHit";
 import { LinkCreateMenu } from "./components/LinkCreateMenu";
-import { QuickToolbar } from "./components/QuickToolbar";
+import { LegacyCreateToolbar } from "./components/LegacyCreateToolbar";
 import { LegacyPromptTemplateModal } from "./components/LegacyPromptTemplateModal";
-import { createImageNodeFromUrl } from "./core/clipboard";
+import { createImageNodeFromUrl, createImportImageNodeFromSource } from "./core/clipboard";
 import {
   LEGACY_NODE_W,
   LEGACY_NODE_H,
@@ -68,14 +60,20 @@ import { LegacyNodeCard } from "./components/LegacyNodeCard";
 import { ConnectionLayer, type TempWire } from "./components/ConnectionLayer";
 import { Minimap } from "./components/Minimap";
 import { ContextMenu } from "./components/ContextMenu";
+import {
+  ImageContextMenu,
+  type ImageContextMenuTarget,
+} from "./components/ImageContextMenu";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { ImageEditModal } from "./components/ImageEditModal";
 import { GenerationLogPanel } from "./components/GenerationLogPanel";
 import { LegacyAssetPanel } from "./components/LegacyAssetPanel";
 import { usePointerDrag } from "../../shared/hooks/usePointerDrag";
-import { cn } from "../../shared/utils";
 import { rememberCanvasId } from "./core/addResultToCanvas";
-import { exportCanvasJson } from "../canvas-list/exportCanvas";
+
+/** Floating chrome / panels inside the viewport — must not start pan or steal clicks. */
+const LEGACY_UI_BLOCKER =
+  "[data-testid='legacy-create-toolbar'],[data-testid='quick-toolbar'],[data-testid='legacy-minimap'],[data-testid='legacy-asset-panel'],[data-testid='legacy-workflow-panel'],[data-testid='legacy-upload-status']";
 
 function nodeIntersectsScreenRect(
   node: { x: number; y: number; width: number; height: number },
@@ -97,8 +95,9 @@ export function LegacyCanvasPage() {
   const { t } = useTranslation("canvas");
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState("");
+  const savingRef = useRef(false);
+  const saveAgainRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [promptTemplateOpen, setPromptTemplateOpen] = useState(false);
@@ -114,11 +113,14 @@ export function LegacyCanvasPage() {
     worldX: number;
     worldY: number;
   } | null>(null);
+  const [imageContextMenu, setImageContextMenu] =
+    useState<ImageContextMenuTarget | null>(null);
   const [tempWire, setTempWire] = useState<TempWire | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [knifeMode, setKnifeMode] = useState(false);
   const [assetOpen, setAssetOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [workflowPanelOpen, setWorkflowPanelOpen] = useState(false);
   const [zoomOverview, setZoomOverview] = useState<{
     x: number;
     y: number;
@@ -171,6 +173,7 @@ export function LegacyCanvasPage() {
     connectOriginKind,
     connectFeedback,
     dirty,
+    baseUpdatedAt,
     setViewport,
     addNode,
     addNodeAtKind,
@@ -178,7 +181,6 @@ export function LegacyCanvasPage() {
     removeNodes,
     selectNode,
     setSelectedIds,
-    arrangeNodes,
     arrangeSelected,
     groupSelected,
     markClean,
@@ -217,7 +219,7 @@ export function LegacyCanvasPage() {
         const finished = finishGenerationOutput(
           sourceNow,
           outputNow,
-          session.pending.id,
+          session.pendings?.map((p) => p.id) ?? session.pending.id,
           { error: message },
           startedAt,
         );
@@ -301,8 +303,14 @@ export function LegacyCanvasPage() {
 
   const handleSave = useCallback(async () => {
     if (!id) return;
-    setSaving(true);
+    if (savingRef.current) {
+      saveAgainRef.current = true;
+      return;
+    }
+    savingRef.current = true;
+    saveAgainRef.current = false;
     setPageError("");
+    let retryDelayMs = 0;
     try {
       const s = useLegacyCanvasStore.getState();
       const doc = await saveLegacyCanvas(id, {
@@ -313,21 +321,48 @@ export function LegacyCanvasPage() {
         settings: s.settings,
         base_updated_at: s.baseUpdatedAt,
       });
-      markClean(doc.updated_at ?? 0);
+      if (saveAgainRef.current) {
+        useLegacyCanvasStore.setState({ baseUpdatedAt: doc.updated_at ?? 0 });
+      } else {
+        markClean(doc.updated_at ?? 0);
+      }
     } catch (error) {
-      setPageError(
-        normalizeGenerationError(
-          error instanceof Error ? error.message : "画布保存失败",
-        ),
-      );
+      const conflictAt = conflictCanvasUpdatedAt(error);
+      if (conflictAt != null) {
+        useLegacyCanvasStore.setState({ baseUpdatedAt: conflictAt });
+        saveAgainRef.current = true;
+      } else {
+        setPageError(
+          normalizeGenerationError(
+            error instanceof Error ? error.message : "画布保存失败",
+          ),
+        );
+        // Keep dirty; retry autosave shortly so a transient failure does not stick.
+        if (useLegacyCanvasStore.getState().dirty) {
+          saveAgainRef.current = true;
+          retryDelayMs = 5000;
+        }
+      }
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (saveAgainRef.current) {
+        saveAgainRef.current = false;
+        window.setTimeout(() => {
+          void handleSave();
+        }, retryDelayMs);
+      }
     }
   }, [id, markClean]);
 
   useEffect(() => {
     if (!id || !dirty) return;
-    const timer = setTimeout(handleSave, 3000);
+    if (savingRef.current) {
+      saveAgainRef.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      void handleSave();
+    }, 3000);
     return () => clearTimeout(timer);
   }, [id, dirty, nodes, connections, viewport, settings, handleSave]);
 
@@ -346,6 +381,9 @@ export function LegacyCanvasPage() {
       if (e.key === "?" && !isEditable(e.target)) {
         e.preventDefault();
         setShortcutsOpen(true);
+        setAssetOpen(false);
+        setLogOpen(false);
+        setWorkflowPanelOpen(false);
         return;
       }
       if (e.key === "Escape") {
@@ -353,6 +391,7 @@ export function LegacyCanvasPage() {
         setPreview(null);
         setLogOpen(false);
         setAssetOpen(false);
+        setWorkflowPanelOpen(false);
         setKnifeMode(false);
         setLinkCreateMenu(null);
         if (zoomOverview) {
@@ -371,6 +410,11 @@ export function LegacyCanvasPage() {
           setZoomOverview({ ...viewport });
           setViewport(fitViewportToNodes(nodes, size.w, size.h));
         }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void handleSave();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
@@ -427,6 +471,7 @@ export function LegacyCanvasPage() {
     size.w,
     size.h,
     cancelConnect,
+    handleSave,
   ]);
 
   const handleRunNode = useCallback(
@@ -434,7 +479,14 @@ export function LegacyCanvasPage() {
       const state = useLegacyCanvasStore.getState();
       const node = state.nodes.find((n) => n.id === nodeId);
       if (!node) return;
-      const logPrompt = String(node.prompt ?? "").trim() ||
+      const runPrompt = resolveGenerationPrompt(
+        node,
+        state.nodes,
+        state.connections,
+        loopCtx,
+      ).prompt;
+      const logPrompt =
+        runPrompt ||
         (node.kind === "ltxDirector"
           ? readLtxTimeline(node).segments
               .map((segment) => String(segment.prompt ?? "").trim())
@@ -454,13 +506,15 @@ export function LegacyCanvasPage() {
         (key) => key === nodeId || key.startsWith(`${nodeId}:`),
       )) return;
       runningNodeIdsRef.current.add(claimKey);
-      setRunningNodeIds((prev) => {
-        const next = new Set(prev);
-        next.add(nodeId);
-        return next;
-      });
 
+      // Stamp the clock *before* flipping `running` so the first paint is ~0.0s
+      // (avoids a stale leftover `runStartedAt` flashing as e.g. 10.0s).
       const startedAt = Date.now();
+      // Only API / ModelScope fire `count` parallel jobs; other kinds are 1-shot.
+      const parallelCountKinds = new Set(["generator", "msgen"]);
+      const imageCount = parallelCountKinds.has(node.kind)
+        ? Math.max(1, Math.min(8, Number(node.settings?.count ?? 1) || 1))
+        : 1;
       setNodeRunErrors((prev) => {
         const next = { ...prev };
         delete next[nodeId];
@@ -475,9 +529,16 @@ export function LegacyCanvasPage() {
         node,
         state.nodes,
         state.connections,
-        node.prompt,
+        logPrompt || runPrompt,
         startedAt,
+        imageCount,
       );
+
+      setRunningNodeIds((prev) => {
+        const next = new Set(prev);
+        next.add(nodeId);
+        return next;
+      });
       if (session?.newOutput) {
         addNode(session.newOutput);
         if (session.newConnection) {
@@ -555,7 +616,7 @@ export function LegacyCanvasPage() {
           const finished = finishGenerationOutput(
             sourceNow,
             outputNow,
-            session.pending.id,
+            session.pendings?.map((p) => p.id) ?? session.pending.id,
             result,
             startedAt,
           );
@@ -741,9 +802,13 @@ export function LegacyCanvasPage() {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    const target = e.target as HTMLElement;
+    if (target.closest(LEGACY_UI_BLOCKER)) return;
+    if (target.closest("[data-testid^='legacy-node']")) return;
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const world = screenToWorld(e.clientX, e.clientY, rect, viewport);
+    setImageContextMenu(null);
     setContextMenu({
       screenX: e.clientX,
       screenY: e.clientY,
@@ -751,6 +816,37 @@ export function LegacyCanvasPage() {
       worldY: world.y,
     });
   };
+
+  const handleImageContextMenu = useCallback(
+    (
+      nodeId: string,
+      url: string,
+      clientX: number,
+      clientY: number,
+      name?: string,
+    ) => {
+      if (!url) return;
+      setContextMenu(null);
+      setImageContextMenu({
+        screenX: clientX,
+        screenY: clientY,
+        nodeId,
+        url,
+        name,
+      });
+    },
+    [],
+  );
+
+  const handleCreateImportFromImage = useCallback(
+    (nodeId: string, url: string, name?: string) => {
+      const source = nodes.find((n) => n.id === nodeId);
+      if (!source || !url) return;
+      pushUndo();
+      addNode(createImportImageNodeFromSource(source, url, name));
+    },
+    [nodes, pushUndo, addNode],
+  );
 
   const handlePortDragStart = useCallback(
     (fromId: string, worldX: number, worldY: number, originKind: "in" | "out" = "out") => {
@@ -874,6 +970,14 @@ export function LegacyCanvasPage() {
     addNodeAtKind(kind, x, y, config);
   };
 
+  const handleToolbarCreate = useCallback(
+    (kind: LegacyNodeKind) => {
+      const pos = lastMouseWorldRef.current;
+      addNodeAtKind(kind, pos.x, pos.y, config);
+    },
+    [addNodeAtKind, config],
+  );
+
   const handleFit = () => {
     setViewport(fitViewportToNodes(nodes, size.w, size.h));
   };
@@ -947,12 +1051,8 @@ export function LegacyCanvasPage() {
   const onViewportPointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
     // Chrome overlays live inside the viewport; never pan / clear selection for them.
-    // (QuickToolbar delete was a no-op: pointerdown cleared selectedIds before click.)
-    if (
-      target.closest(
-        "[data-testid='quick-toolbar'], [data-testid='legacy-minimap'], [data-testid='legacy-asset-panel'], [data-testid='legacy-upload-status']",
-      )
-    ) {
+    // Otherwise setPointerCapture on the viewport steals the click from floating buttons.
+    if (target.closest(LEGACY_UI_BLOCKER)) {
       return;
     }
     if (target.closest("[data-testid^='legacy-node']")) {
@@ -1026,12 +1126,12 @@ export function LegacyCanvasPage() {
 
   return (
     <div
-      className="h-full flex flex-col bg-[#f7f7f8]"
+      className="relative h-full overflow-hidden bg-[#f7f7f8]"
       data-testid="legacy-canvas-page"
     >
       {pageError ? (
         <div
-          className="flex items-center justify-between gap-3 bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700"
+          className="absolute left-0 right-0 top-0 z-40 flex items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700"
           role="alert"
           data-testid="legacy-canvas-error"
         >
@@ -1045,189 +1145,18 @@ export function LegacyCanvasPage() {
           </button>
         </div>
       ) : null}
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white">
-        <Link
-          to="/canvases"
-          className="p-2 rounded-lg hover:bg-gray-50 transition-colors"
-          aria-label={t("backToList")}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
-        <h1 className="font-medium flex-1 truncate">{title}</h1>
-        {dirty ? (
-          <span className="text-xs text-gray-400" data-testid="legacy-dirty-badge">
-            未保存
-          </span>
-        ) : null}
-        {selectedIds.length > 1 ? (
-          <span className="text-xs text-gray-500" data-testid="legacy-multi-select-count">
-            {t("multiSelect.count", { count: selectedIds.length })}
-          </span>
-        ) : null}
-        {connectFromId ? (
-          <button
-            type="button"
-            onClick={cancelConnect}
-            className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded-lg"
-            data-testid="legacy-cancel-connect"
-          >
-            <X className="w-3 h-3" />
-            取消连接
-          </button>
-        ) : null}
-        {connectFeedback ? (
-          <span
-            className="text-xs text-red-600 max-w-[220px] truncate"
-            data-testid="legacy-connect-feedback"
-            title={connectFeedback}
-            onClick={() => clearConnectFeedback()}
-          >
-            {connectFeedback}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => setAssetOpen((v) => !v)}
-          className={cn(
-            "p-2 rounded-lg",
-            assetOpen ? "bg-black text-white" : "hover:bg-gray-50",
-          )}
-          title={t("assetLibrary")}
-          data-testid="legacy-asset-btn"
-        >
-          <FolderOpen className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setLogOpen(true)}
-          className="p-2 rounded-lg hover:bg-gray-50"
-          title={t("generationLogs")}
-          data-testid="legacy-log-btn"
-        >
-          <ScrollText className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setKnifeMode((v) => !v)}
-          className={cn(
-            "p-2 rounded-lg",
-            knifeMode ? "bg-red-600 text-white" : "hover:bg-gray-50",
-          )}
-          title={t("knifeMode")}
-          data-testid="legacy-knife-btn"
-        >
-          <Scissors className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={handleExportWorkflow}
-          className="p-2 rounded-lg hover:bg-gray-50"
-          title={t("exportWorkflow")}
-          data-testid="legacy-export-workflow-btn"
-        >
-          <GitBranch className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => workflowInputRef.current?.click()}
-          className="p-2 rounded-lg hover:bg-gray-50"
-          title={t("importWorkflow")}
-          data-testid="legacy-import-workflow-btn"
-        >
-          <Upload className="w-4 h-4" />
-        </button>
-        <input
-          ref={workflowInputRef}
-          type="file"
-          accept="application/json,.json,.zip,application/zip"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void handleImportWorkflowFile(file);
-            e.target.value = "";
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => setShortcutsOpen(true)}
-          className="p-2 rounded-lg hover:bg-gray-50"
-          title={t("shortcuts.title")}
-          data-testid="legacy-shortcuts-btn"
-        >
-          <Keyboard className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={arrangeNodes}
-          className="p-2 rounded-lg hover:bg-gray-50"
-          title="排列节点"
-          data-testid="legacy-arrange-btn"
-        >
-          <LayoutGrid className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={handleFit}
-          className="p-2 rounded-lg hover:bg-gray-50"
-          title={t("generatePanel.fitViewport")}
-          data-testid="legacy-fit-btn"
-        >
-          <LocateFixed className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => id && void exportCanvasJson(id, title)}
-          className="p-2 rounded-lg hover:bg-gray-50"
-          title={t("download")}
-          data-testid="legacy-export-btn"
-        >
-          <Download className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm",
-            dirty
-              ? "bg-black text-white hover:bg-gray-900"
-              : "border border-gray-200 hover:border-black",
-          )}
-          data-testid="legacy-save-btn"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? "保存中" : "保存"}
-        </button>
-        <span className="text-xs text-gray-500">{t("legacyCanvas")}</span>
-        <Link
-          to="/canvases"
-          className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded-lg hover:border-black transition-colors"
-          title={t("smartCanvasHint")}
-          data-testid="legacy-open-smart-link"
-        >
-          <Sparkles className="w-3 h-3" />
-          {t("openSmartCanvas")}
-        </Link>
-      </header>
 
-      <p
-        className="px-4 py-2 text-xs text-gray-600 border-b border-gray-100 bg-white"
-        data-testid="legacy-canvas-hint"
-      >
-        {t("hint")}
-      </p>
-
-      <div className="flex-1 flex overflow-hidden">
+      <div className="absolute inset-0 flex overflow-hidden">
         <section
           ref={containerRef}
-          className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing"
+          className="relative flex-1 cursor-grab overflow-hidden active:cursor-grabbing"
           data-testid="legacy-canvas-viewport"
           onWheel={handleWheel}
           onContextMenu={handleContextMenu}
           onDoubleClick={(e) => {
-            if ((e.target as HTMLElement).closest("[data-testid^='legacy-node']")) {
-              return;
-            }
+            const target = e.target as HTMLElement;
+            if (target.closest(LEGACY_UI_BLOCKER)) return;
+            if (target.closest("[data-testid^='legacy-node']")) return;
             if (!containerRef.current) return;
             const rect = containerRef.current.getBoundingClientRect();
             const world = screenToWorld(e.clientX, e.clientY, rect, viewport);
@@ -1270,6 +1199,75 @@ export function LegacyCanvasPage() {
             backgroundPosition: `${viewport.x}px ${viewport.y}px`,
           }}
         >
+          <LegacyCreateToolbar
+            title={title}
+            updatedAt={baseUpdatedAt}
+            dirty={dirty}
+            assetOpen={assetOpen}
+            knifeMode={knifeMode}
+            selectedCount={selectedIds.length}
+            connecting={Boolean(connectFromId)}
+            connectFeedback={connectFeedback || undefined}
+            onClearConnectFeedback={() => clearConnectFeedback()}
+            onCancelConnect={cancelConnect}
+            onCreate={handleToolbarCreate}
+            onGroup={() => groupSelected()}
+            onToggleAssets={() => {
+              if (assetOpen) {
+                setAssetOpen(false);
+                return;
+              }
+              setAssetOpen(true);
+              setLogOpen(false);
+              setWorkflowPanelOpen(false);
+              setShortcutsOpen(false);
+            }}
+            onOpenLogs={() => {
+              if (logOpen) {
+                setLogOpen(false);
+                return;
+              }
+              setLogOpen(true);
+              setAssetOpen(false);
+              setWorkflowPanelOpen(false);
+              setShortcutsOpen(false);
+            }}
+            onOpenWorkflow={() => {
+              if (workflowPanelOpen) {
+                setWorkflowPanelOpen(false);
+                return;
+              }
+              setWorkflowPanelOpen(true);
+              setAssetOpen(false);
+              setLogOpen(false);
+              setShortcutsOpen(false);
+            }}
+            onOpenShortcuts={() => {
+              if (shortcutsOpen) {
+                setShortcutsOpen(false);
+                return;
+              }
+              setShortcutsOpen(true);
+              setAssetOpen(false);
+              setLogOpen(false);
+              setWorkflowPanelOpen(false);
+            }}
+            onToggleKnife={() => setKnifeMode((v) => !v)}
+            onFit={handleFit}
+          />
+          <input
+            ref={workflowInputRef}
+            type="file"
+            accept="application/json,.json,.zip,application/zip"
+            className="hidden"
+            data-testid="legacy-import-workflow-input"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleImportWorkflowFile(file);
+              e.target.value = "";
+            }}
+          />
+
           <div
             className="absolute origin-top-left"
             style={{
@@ -1320,6 +1318,8 @@ export function LegacyCanvasPage() {
                         : undefined,
                   });
                 }}
+                onImageContextMenu={handleImageContextMenu}
+                knifeMode={knifeMode}
               />
             ))}
           </div>
@@ -1328,6 +1328,8 @@ export function LegacyCanvasPage() {
             viewport={viewport}
             containerWidth={size.w}
             containerHeight={size.h}
+            selectedCount={selectedIds.length}
+            onArrangeSelected={() => arrangeSelected()}
           />
           {selectionBox ? (
             <div
@@ -1359,19 +1361,51 @@ export function LegacyCanvasPage() {
             onClose={() => setAssetOpen(false)}
             onSelect={handleAssetSelect}
           />
-          <QuickToolbar
-            selectedCount={selectedIds.length}
-            knifeMode={knifeMode}
-            onGroup={() => groupSelected()}
-            onArrangeSelected={() => arrangeSelected()}
-            onCopy={() => copySelection()}
-            onDelete={() => {
-              const ids = useLegacyCanvasStore.getState().selectedIds;
-              if (ids.length) removeNodes(ids);
-            }}
-            onToggleKnife={() => setKnifeMode((v) => !v)}
-            onFit={handleFit}
-          />
+          {workflowPanelOpen ? (
+            <aside
+              className="absolute right-[22px] top-[66px] z-[56] w-72 border border-[var(--border)] bg-[var(--bg)]/95 p-4 shadow-[0_22px_58px_var(--shadow)] backdrop-blur-xl"
+              data-testid="legacy-workflow-panel"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold">导入导出工作流</div>
+                  <div className="text-[11px] text-[var(--muted)]">导出选中节点，或导入工作流到当前画布</div>
+                </div>
+                <button
+                  type="button"
+                  className="p-1 text-[var(--muted)] hover:text-[var(--text)]"
+                  aria-label="关闭"
+                  onClick={() => setWorkflowPanelOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 border border-[var(--border)] px-3 py-2 text-sm hover:border-[var(--text)]"
+                  data-testid="legacy-export-workflow-action"
+                  onClick={() => {
+                    void handleExportWorkflow();
+                    setWorkflowPanelOpen(false);
+                  }}
+                >
+                  <PackageOpen className="h-4 w-4" />
+                  {t("exportWorkflow")}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 border border-[var(--border)] px-3 py-2 text-sm hover:border-[var(--text)]"
+                  data-testid="legacy-import-workflow-btn"
+                  onClick={() => workflowInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  {t("importWorkflow")}
+                </button>
+              </div>
+            </aside>
+          ) : null}
         </section>
 
       </div>
@@ -1387,6 +1421,25 @@ export function LegacyCanvasPage() {
           onCreate={handleCreateFromMenu}
         />
       ) : null}
+      {imageContextMenu ? (
+        <ImageContextMenu
+          target={imageContextMenu}
+          onClose={() => setImageContextMenu(null)}
+          onPreview={(nodeId, url) => {
+            const target = nodes.find((n) => n.id === nodeId);
+            setPreview({
+              url,
+              title: target?.title ?? imageContextMenu.name ?? t("image"),
+              nodeId,
+              compareUrl:
+                target?.kind === "output"
+                  ? outputCompareUrlFor(url, target) ?? undefined
+                  : undefined,
+            });
+          }}
+          onCreateImport={handleCreateImportFromImage}
+        />
+      ) : null}
       <ShortcutsModal
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
@@ -1398,21 +1451,26 @@ export function LegacyCanvasPage() {
         title={preview?.title}
         nodeId={preview?.nodeId}
         onClose={() => setPreview(null)}
-        onImageUpdated={(nodeId, url, name) => {
-          updateNode(nodeId, {
-            images: [{ url, kind: "image", name }],
-            title: name || preview?.title || t("image"),
-          });
+        onCreateImportNode={(sourceNodeId, url, name) => {
+          handleCreateImportFromImage(sourceNodeId, url, name);
         }}
-        onMaskCreated={(sourceNodeId, maskUrl) => {
+        onResultCreated={(sourceNodeId, result) => {
           const source = nodes.find((n) => n.id === sourceNodeId);
           if (!source) return;
+          pushUndo();
+          const suffix =
+            result.kind === "crop"
+              ? "crop"
+              : result.kind === "outpaint"
+                ? "outpaint"
+                : "mask";
+          const titleBase = (source.title || t("image")).replace(/\.[^.]+$/, "");
           addNode(
-            createImageNodeFromUrl(
-              maskUrl,
-              source.x + 40,
-              source.y + 40,
-              `${source.title}_mask`,
+            createImportImageNodeFromSource(
+              source,
+              result.url,
+              result.name || `${titleBase}_${suffix}`,
+              result.kind === "mask" ? 28 : 0,
             ),
           );
         }}
@@ -1433,6 +1491,11 @@ export function LegacyCanvasPage() {
       ) : null}
       <LegacyPromptTemplateModal
         open={promptTemplateOpen}
+        currentPrompt={
+          promptTemplateNodeId
+            ? String(nodes.find((n) => n.id === promptTemplateNodeId)?.prompt || "")
+            : ""
+        }
         onClose={() => {
           setPromptTemplateOpen(false);
           setPromptTemplateNodeId(null);
@@ -1443,6 +1506,7 @@ export function LegacyCanvasPage() {
             updateNode(promptTemplateNodeId, {
               prompt: content,
               title: target?.title || t("prompt"),
+              settings: { ...(target?.settings ?? {}), text: content },
             });
           }
         }}

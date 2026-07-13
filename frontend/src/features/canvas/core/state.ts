@@ -22,6 +22,7 @@ import {
 } from "./connectRules";
 import { filterValidConnections } from "./layout";
 import { arrangeGrid } from "./viewport";
+import { clampLegacyNodeSize } from "./nodeResize";
 import { defaultSettingsForKind } from "./runNodeGeneration";
 import { normalizePersistedCanvasNodes } from "./runState";
 import { importWorkflowAt, type WorkflowPayload } from "./workflowTransfer";
@@ -351,8 +352,10 @@ export const useLegacyCanvasStore = create<LegacyCanvasState>()(
       set((s) => {
         const node = s.nodes.find((n) => n.id === id);
         if (!node) return;
-        node.width = Math.max(180, Math.round(width));
-        node.height = Math.max(96, Math.round(height));
+        const next = clampLegacyNodeSize(width, height);
+        node.width = next.width;
+        node.height = next.height;
+        node.settings = { ...node.settings, sized: true };
         s.dirty = true;
       }),
 

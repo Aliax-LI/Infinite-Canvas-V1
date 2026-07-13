@@ -10,6 +10,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  deleteKeyLabel,
+  formatModShortcut,
+  modKeyLabel,
+} from "../../../shared/utils/platformShortcuts";
 
 interface QuickToolbarProps {
   selectedCount: number;
@@ -34,6 +39,7 @@ export function QuickToolbar({
 }: QuickToolbarProps) {
   const { t } = useTranslation("canvas");
   const [expanded, setExpanded] = useState(true);
+  const mod = modKeyLabel();
 
   return (
     <div
@@ -55,7 +61,7 @@ export function QuickToolbar({
         <div className="flex flex-col p-1 gap-0.5">
           <ToolbarBtn
             testId="quick-toolbar-group"
-            title={t("groupSelected")}
+            title={t("groupSelected", { mod })}
             onClick={onGroup}
             disabled={selectedCount < 1}
           >
@@ -69,12 +75,17 @@ export function QuickToolbar({
           >
             <AlignHorizontalJustifyCenter className="w-4 h-4" />
           </ToolbarBtn>
-          <ToolbarBtn testId="quick-toolbar-copy" title="Ctrl+C" onClick={onCopy} disabled={!selectedCount}>
+          <ToolbarBtn
+            testId="quick-toolbar-copy"
+            title={formatModShortcut(["C"])}
+            onClick={onCopy}
+            disabled={!selectedCount}
+          >
             <Copy className="w-4 h-4" />
           </ToolbarBtn>
           <ToolbarBtn
             testId="quick-toolbar-delete"
-            title="Delete"
+            title={deleteKeyLabel()}
             onClick={onDelete}
             disabled={!selectedCount}
           >

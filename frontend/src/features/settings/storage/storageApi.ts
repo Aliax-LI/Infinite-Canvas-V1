@@ -5,6 +5,8 @@ export type StorageStats = {
   database_path: string;
   database_bytes: number;
   objects_dir: string;
+  assets_dir?: string;
+  output_dir?: string;
   object_count: number;
   objects_bytes: number;
   orphan_count: number;

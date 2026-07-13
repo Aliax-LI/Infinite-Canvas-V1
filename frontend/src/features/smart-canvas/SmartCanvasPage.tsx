@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useSmartCanvasStore } from "./core/state";
+import { conflictCanvasUpdatedAt } from "../../shared/api/canvasConflict";
 import { loadCanvas, saveCanvas } from "./core/persistence";
 import { CanvasWorld } from "./components/CanvasWorld";
 import { ConnectionLayer } from "./components/ConnectionLayer";
@@ -45,6 +46,7 @@ import { ImageEditModal } from "./components/ImageEditModal";
 import { SelectionBox } from "./components/SelectionBox";
 import { GroupToolbar } from "./components/GroupToolbar";
 import { SelectionToolbar } from "./components/SelectionToolbar";
+import { SmartToast } from "./components/SmartToast";
 import { exportSmartCanvasGroup } from "./core/advanced";
 import { uploadCanvasMediaFiles } from "../canvas/core/uploadMedia";
 import { usePointerDrag } from "../../shared/hooks/usePointerDrag";
@@ -64,8 +66,9 @@ export function SmartCanvasPage() {
   const emptyPointerActiveRef = useRef(false);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState("");
+  const savingRef = useRef(false);
+  const saveAgainRef = useRef(false);
   const [assetOpen, setAssetOpen] = useState(false);
   const [assetRefreshKey, setAssetRefreshKey] = useState(0);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -91,6 +94,7 @@ export function SmartCanvasPage() {
     w: number;
     h: number;
   } | null>(null);
+  const [toastMessage, setToastMessage] = useState("");
 
   const store = useSmartCanvasStore();
   const {
@@ -210,10 +214,20 @@ export function SmartCanvasPage() {
     onAssetLibraryUpdated: () => setAssetRefreshKey((k) => k + 1),
   });
 
-  const handleSave = useCallback(async () => {
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+  }, []);
+
+  const handleSave = useCallback(async (_opts?: { silent?: boolean }) => {
     if (!id) return;
-    setSaving(true);
+    if (savingRef.current) {
+      saveAgainRef.current = true;
+      return;
+    }
+    savingRef.current = true;
+    saveAgainRef.current = false;
     setPageError("");
+    let retryDelayMs = 0;
     try {
       const s = useSmartCanvasStore.getState();
       const doc = await saveCanvas(id, {
@@ -226,18 +240,44 @@ export function SmartCanvasPage() {
         settings: s.settings,
         base_updated_at: s.baseUpdatedAt,
       });
-      markClean(doc.updated_at ?? 0);
+      if (saveAgainRef.current) {
+        useSmartCanvasStore.setState({ baseUpdatedAt: doc.updated_at ?? 0 });
+      } else {
+        markClean(doc.updated_at ?? 0);
+      }
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : "画布保存失败");
+      const conflictAt = conflictCanvasUpdatedAt(error);
+      if (conflictAt != null) {
+        useSmartCanvasStore.setState({ baseUpdatedAt: conflictAt });
+        saveAgainRef.current = true;
+      } else {
+        const message = error instanceof Error ? error.message : "画布保存失败";
+        setPageError(message);
+        showToast(message);
+        if (useSmartCanvasStore.getState().dirty) {
+          saveAgainRef.current = true;
+          retryDelayMs = 5000;
+        }
+      }
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (saveAgainRef.current) {
+        saveAgainRef.current = false;
+        window.setTimeout(() => {
+          void handleSave({ silent: true });
+        }, retryDelayMs);
+      }
     }
-  }, [id, markClean]);
+  }, [id, markClean, showToast]);
 
   useEffect(() => {
     if (!id || !dirty) return;
+    if (savingRef.current) {
+      saveAgainRef.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
-      void handleSave();
+      void handleSave({ silent: true });
     }, 3000);
     return () => clearTimeout(timer);
   }, [id, dirty, nodes, connections, viewport, handleSave]);
@@ -319,6 +359,9 @@ export function SmartCanvasPage() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setAssetOpen(false);
+        setLogOpen(false);
+        setShortcutOpen(false);
+        setTransferOpen(false);
         setTemplateOpen(false);
         setWorkflowOpen(false);
         setCreateMenu(null);
@@ -334,7 +377,7 @@ export function SmartCanvasPage() {
       const key = e.key.toLowerCase();
       if (mod && key === "s") {
         e.preventDefault();
-        void handleSave();
+        void handleSave({ silent: true });
       } else if (mod && key === "g" && e.shiftKey) {
         const selected = useSmartCanvasStore.getState().selectedNodeId;
         const group = useSmartCanvasStore.getState().nodes.find(
@@ -356,6 +399,9 @@ export function SmartCanvasPage() {
         setConnectFrom(null);
       } else if (!mod && key === "a") {
         e.preventDefault();
+        setLogOpen(false);
+        setShortcutOpen(false);
+        setTransferOpen(false);
         setAssetOpen((value) => !value);
       } else if (mod && key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -365,10 +411,21 @@ export function SmartCanvasPage() {
         redo();
       } else if (mod && key === "c") {
         e.preventDefault();
-        copySelectedNodes();
+        const current = useSmartCanvasStore.getState();
+        const ids = current.selectedIds.length
+          ? current.selectedIds
+          : current.selectedNodeId
+            ? [current.selectedNodeId]
+            : [];
+        if (ids.length) {
+          copySelectedNodes();
+          showToast("已复制到剪贴板");
+        }
       } else if (mod && key === "v") {
         e.preventDefault();
+        const before = useSmartCanvasStore.getState().clipboard.length;
         pasteNodes();
+        if (before) showToast("已粘贴");
       } else if (e.key === "Delete" || e.key === "Backspace") {
         const current = useSmartCanvasStore.getState();
         const ids = current.selectedIds.length
@@ -391,6 +448,7 @@ export function SmartCanvasPage() {
     pasteNodes,
     redo,
     removeNodes,
+    showToast,
     undo,
     ungroupGroup,
   ]);
@@ -1059,45 +1117,17 @@ export function SmartCanvasPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[var(--stage-bg)]" data-testid="smart-canvas-page">
+    <div className="relative h-full overflow-hidden bg-[var(--stage-bg)]" data-testid="smart-canvas-page">
       {pageError ? (
-        <div className="flex items-center justify-between gap-3 bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700" role="alert" data-testid="smart-canvas-error">
+        <div className="absolute left-0 right-0 top-0 z-40 flex items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700" role="alert" data-testid="smart-canvas-error">
           <span>{pageError}</span>
           <button type="button" onClick={() => setPageError("")} className="font-medium">关闭</button>
         </div>
       ) : null}
-      <SmartCanvasToolbar
-        title={title}
-        dirty={dirty}
-        saving={saving}
-        connectMode={connectMode}
-        assetOpen={assetOpen}
-        templateOpen={templateOpen}
-        workflowOpen={workflowOpen}
-        onUndo={undo}
-        onRedo={redo}
-        onArrange={handleArrange}
-        onToggleConnect={() => {
-          setConnectMode((v) => {
-            const next = !v;
-            if (!next) setConnectFrom(null);
-            return next;
-          });
-        }}
-        onToggleAssets={() => setAssetOpen((v) => !v)}
-        onToggleTemplates={() => setTemplateOpen((v) => !v)}
-        onToggleWorkflowPicker={() => setWorkflowOpen((v) => !v)}
-        onOpenTransfer={() => setTransferOpen(true)}
-        onAddImportNode={() => handleCreateNode("image")}
-        onOpenCreateMenu={(x, y) => setCreateMenu({ x, y })}
-        onOpenLogs={() => setLogOpen(true)}
-        onOpenShortcuts={() => setShortcutOpen(true)}
-        onSave={() => void handleSave()}
-      />
 
       <div
         ref={containerRef}
-        className="flex-1 relative overflow-hidden touch-none"
+        className="absolute inset-0 overflow-hidden touch-none"
         data-testid="smart-canvas-viewport"
         onContextMenu={(e) => {
           // History: no create menu on nodes / chrome
@@ -1142,6 +1172,53 @@ export function SmartCanvasPage() {
         onPointerUp={onViewportPointerUp}
         onPointerLeave={onViewportPointerUp}
       >
+        <SmartCanvasToolbar
+          title={title}
+          dirty={dirty}
+          assetOpen={assetOpen}
+          onToggleAssets={() => {
+            if (assetOpen) {
+              setAssetOpen(false);
+              return;
+            }
+            setAssetOpen(true);
+            setLogOpen(false);
+            setShortcutOpen(false);
+            setTransferOpen(false);
+          }}
+          onOpenTransfer={() => {
+            if (transferOpen) {
+              setTransferOpen(false);
+              return;
+            }
+            setTransferOpen(true);
+            setAssetOpen(false);
+            setLogOpen(false);
+            setShortcutOpen(false);
+          }}
+          onOpenLogs={() => {
+            if (logOpen) {
+              setLogOpen(false);
+              return;
+            }
+            setLogOpen(true);
+            setAssetOpen(false);
+            setTransferOpen(false);
+            setShortcutOpen(false);
+          }}
+          onOpenShortcuts={() => {
+            if (shortcutOpen) {
+              setShortcutOpen(false);
+              return;
+            }
+            setShortcutOpen(true);
+            setAssetOpen(false);
+            setLogOpen(false);
+            setTransferOpen(false);
+          }}
+        />
+        <SmartToast message={toastMessage} onClear={() => setToastMessage("")} />
+
         <CanvasWorld
           width={size.w}
           height={size.h}
@@ -1268,6 +1345,12 @@ export function SmartCanvasPage() {
                   onDelete={() => removeNodes([selectedGroup.id])}
                 />
               ) : null}
+              <Composer
+                onBeforeGenerate={handleBeforeGenerate}
+                onGenerate={handleGenerate}
+                onCascade={handleCascade}
+                onOpenTemplates={() => setTemplateOpen(true)}
+              />
             </>
           )}
         </CanvasWorld>
@@ -1277,18 +1360,15 @@ export function SmartCanvasPage() {
           viewport={viewport}
           containerWidth={size.w}
           containerHeight={size.h}
-        />
-
-        <Composer
-          onBeforeGenerate={handleBeforeGenerate}
-          onGenerate={handleGenerate}
-          onCascade={handleCascade}
+          selectedCount={selectedIds.length}
+          onArrangeSelected={handleArrange}
         />
 
         <AssetPanel
           key={assetRefreshKey}
           open={assetOpen}
           onClose={() => setAssetOpen(false)}
+          onToast={showToast}
           onSelect={(url) => {
             setComposer({ params: { ...store.composer.params, reference: url } });
             setAssetOpen(false);
@@ -1305,7 +1385,7 @@ export function SmartCanvasPage() {
         />
 
         {workflowOpen && (
-          <div className="absolute top-14 right-4 w-72 border border-[var(--border)] bg-[var(--bg)] p-4 z-20 max-h-80 overflow-auto shadow-lg" data-testid="workflow-picker-panel" onPointerDown={(event) => event.stopPropagation()}>
+          <div className="absolute top-[66px] right-[22px] w-72 border border-[var(--border)] bg-[var(--bg)] p-4 z-20 max-h-80 overflow-auto shadow-lg" data-testid="workflow-picker-panel" onPointerDown={(event) => event.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-medium">RunningHub 工作流</span>
               <button type="button" aria-label="关闭工作流选择" className="rounded p-1 text-[var(--muted)] hover:bg-[var(--nav-hover-bg)]" onClick={() => setWorkflowOpen(false)}>×</button>

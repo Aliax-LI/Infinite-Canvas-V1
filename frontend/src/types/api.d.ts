@@ -85,9 +85,38 @@ export interface AppInfo {
 
 export interface PromptTemplate {
   id: string;
-  title: string;
-  content: string;
+  name?: string;
+  title?: string;
+  positive?: string;
+  content?: string;
+  negative?: string;
+  scene?: string;
+  category?: string;
+  params?: Record<string, string>;
+  builtin?: boolean;
   tags?: string[];
+}
+
+export interface PromptLibraryCategory {
+  id: string;
+  name: string;
+}
+
+export interface PromptLibraryDoc {
+  id: string;
+  name: string;
+  readonly?: boolean;
+  system?: boolean;
+  categories?: PromptLibraryCategory[];
+  items?: PromptTemplate[];
+}
+
+export interface PromptLibrariesResponse {
+  library: {
+    active_library_id?: string;
+    libraries: PromptLibraryDoc[];
+    updated_at?: number;
+  };
 }
 
 export interface RunningHubWorkflow {

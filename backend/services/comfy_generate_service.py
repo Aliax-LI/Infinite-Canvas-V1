@@ -469,7 +469,9 @@ def comfy_generate(req: GenerateRequest) -> dict[str, Any]:
             post_req = urllib.request.Request(f"http://{target_backend}/prompt", data=data)
             prompt_id = json.loads(urllib.request.urlopen(post_req, timeout=10).read())["prompt_id"]
         except urllib.error.HTTPError as exc:
-            error_body = exc.read().decode("utf-8")
+            error_body = (exc.read().decode("utf-8", errors="replace") or "").strip()
+            if not error_body:
+                error_body = f"(ComfyUI returned empty body for HTTP {exc.code})"
             raise Exception(f"HTTP Error {exc.code}: {error_body}") from exc
 
         history_data = None

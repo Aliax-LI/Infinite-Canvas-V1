@@ -215,8 +215,25 @@ export const NodeCard = memo(function NodeCard({
             <img
               src={thumb}
               alt=""
-              className="w-full h-32 object-cover mb-2"
-              draggable={false}
+              className="w-full h-32 object-cover mb-2 cursor-grab active:cursor-grabbing"
+              draggable
+              data-testid={`node-image-drag-${node.id}`}
+              onDragStart={(e) => {
+                e.stopPropagation();
+                const img = images[imgIndex] ?? images[0];
+                if (!img?.url) return;
+                const payload = JSON.stringify({
+                  url: img.url,
+                  name: node.title || img.name || "canvas-image",
+                });
+                e.dataTransfer.setData("application/x-smart-canvas-image", payload);
+                e.dataTransfer.setData("text/uri-list", img.url);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              onPointerDown={(e) => {
+                // Allow HTML5 drag without starting card pointer-drag
+                e.stopPropagation();
+              }}
             />
             {images.length > 1 && (
               <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1">
@@ -315,29 +332,26 @@ export const NodeCard = memo(function NodeCard({
       {onConnect && (
         <button
           type="button"
-          className="absolute -left-2 top-1/2 grid h-4 w-4 place-items-center bg-[var(--text)] text-xs text-[var(--bg)]"
+          className="smart-node-port absolute -left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 border-2 border-white bg-[#111827] shadow-[0_0_0_1px_#94a3b8]"
           onClick={(e) => {
             e.stopPropagation();
             onConnect(node.id);
           }}
           aria-label={`连接到 ${node.title || node.kind}`}
           data-testid={`connect-input-${node.id}`}
-        >
-          ←
-        </button>
+        />
       )}
       {onConnect && (
         <button
           type="button"
-          className="absolute -right-2 top-1/2 grid h-4 w-4 place-items-center bg-[var(--text)] text-xs text-[var(--bg)]"
+          className="smart-node-port absolute -right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 border-2 border-white bg-[#111827] shadow-[0_0_0_1px_#94a3b8]"
           onClick={(e) => {
             e.stopPropagation();
             onConnect(node.id);
           }}
+          aria-label={`从 ${node.title || node.kind} 连出`}
           data-testid={`connect-port-${node.id}`}
-        >
-          →
-        </button>
+        />
       )}
     </div>
   );

@@ -8,6 +8,8 @@ from fastapi import HTTPException
 from backend.config import (
     ASSETS_DIR,
     ASSET_LIBRARY_DIR,
+    LEGACY_ASSETS_DIR,
+    LEGACY_OUTPUT_DIR,
     OUTPUT_DIR,
     OUTPUT_INPUT_DIR,
     OUTPUT_OUTPUT_DIR,
@@ -73,19 +75,27 @@ def output_file_from_url(url: str | dict | None) -> str | None:
         return None
     clean = urllib.parse.unquote(str(url).split("?", 1)[0]).replace("\\", "/")
     if clean.startswith("/assets/"):
-        root = ASSETS_DIR
+        roots = [ASSETS_DIR]
+        if LEGACY_ASSETS_DIR is not None:
+            roots.append(LEGACY_ASSETS_DIR)
         rel = clean[len("/assets/"):]
     else:
-        root = OUTPUT_DIR
+        roots = [OUTPUT_DIR]
+        if LEGACY_OUTPUT_DIR is not None:
+            roots.append(LEGACY_OUTPUT_DIR)
         rel = clean[len("/output/"):]
     rel = rel.lstrip("/")
     if not rel:
         return None
-    path = os.path.abspath(os.path.join(str(root), rel))
-    output_root = os.path.abspath(str(root))
-    if os.path.commonpath([output_root, path]) != output_root or not os.path.exists(path):
-        return None
-    return path
+    for root in roots:
+        path = os.path.abspath(os.path.join(str(root), rel))
+        output_root = os.path.abspath(str(root))
+        try:
+            if os.path.commonpath([output_root, path]) == output_root and os.path.exists(path):
+                return path
+        except ValueError:
+            continue
+    return None
 
 
 def filename_from_media_url(url: str, fallback: str = "download.bin") -> str:
@@ -126,6 +136,14 @@ def local_media_file_by_basename(name: str) -> str | None:
         ASSETS_DIR / "input",
         ASSET_LIBRARY_DIR,
     ]
+    if LEGACY_ASSETS_DIR is not None:
+        roots.extend(
+            [
+                LEGACY_ASSETS_DIR / "output",
+                LEGACY_ASSETS_DIR / "input",
+                LEGACY_ASSETS_DIR / "library",
+            ]
+        )
     for root in roots:
         path = os.path.abspath(os.path.join(str(root), safe))
         root_abs = os.path.abspath(str(root))

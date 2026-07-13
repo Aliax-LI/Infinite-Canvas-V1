@@ -158,6 +158,12 @@ async def ms_generate(payload: MsGenerateRequest) -> dict:
     return await ms_generate_service.ms_generate(payload)
 
 
+@router.post("/generate")
+async def generate_cloud(payload: CloudGenRequest) -> dict:
+    """History ModelScope Z-Image cloud generate (not ComfyUI)."""
+    return await ms_generate_service.zimage_cloud_generate(payload)
+
+
 @router.post("/api/generate")
 async def generate(payload: GenerateRequest) -> dict:
     return comfy_generate_service.comfy_generate(payload)

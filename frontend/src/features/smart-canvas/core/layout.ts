@@ -164,4 +164,4 @@ export function zoomViewportAt(
 
 /** Overlay / chrome selectors that must not start pan / clear / create-menu. */
 export const SMART_UI_BLOCKER =
-  "[data-testid='composer'],[data-testid='smart-canvas-toolbar'],[data-testid='minimap'],[data-testid='create-menu'],[data-testid='workflow-transfer-modal'],[data-testid='workflow-picker-panel'],[data-testid='mention-picker'],[data-testid^='group-toolbar'],[data-testid='selection-toolbar'],[data-testid^='node-card']";
+  "[data-testid='composer'],[data-testid='smart-canvas-toolbar'],[data-testid='asset-panel'],[data-testid='smart-toast'],[data-testid='minimap'],[data-testid='create-menu'],[data-testid='workflow-transfer-modal'],[data-testid='workflow-picker-panel'],[data-testid='mention-picker'],[data-testid^='group-toolbar'],[data-testid='selection-toolbar'],[data-testid^='node-card']";

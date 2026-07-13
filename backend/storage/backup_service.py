@@ -31,6 +31,8 @@ def storage_stats(
     db_path: Path = DATABASE_PATH,
     objects_dir: Path = OBJECTS_DIR,
 ) -> dict[str, Any]:
+    from backend.config import ASSETS_DIR, OUTPUT_DIR
+
     db_size = db_path.stat().st_size if db_path.is_file() else 0
     keys = list_object_keys(objects_dir)
     orphans = scan_orphan_objects(objects_root=objects_dir, data_dir=data_dir)
@@ -39,6 +41,8 @@ def storage_stats(
         "database_path": str(db_path),
         "database_bytes": db_size,
         "objects_dir": str(objects_dir),
+        "assets_dir": str(ASSETS_DIR),
+        "output_dir": str(OUTPUT_DIR),
         "object_count": len(keys),
         "objects_bytes": _dir_size(objects_dir),
         "orphan_count": orphans["orphan_count"],
